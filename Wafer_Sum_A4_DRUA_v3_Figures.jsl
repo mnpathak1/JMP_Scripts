@@ -1,0 +1,438 @@
+
+
+//-----------------------------------
+//
+// VARIABILITY PLOTS WITH TARGET, USL & LSL
+//
+// Manjit Pathak 09/14/2018
+//
+//-----------------------------------
+
+Current Data Table (dtK5verity);
+
+// K5 verity plot
+
+dtK5verityPlot = Variability Chart(	Y( :K5F ),	X( :WAFERNUM, :Reader ),	Model( "Crossed" ),	Max Iter( 100 ), Conv Limit( 0.00000001 ),
+					Number Integration Abscissas( 128 ),	Number Function Evals( 65536 ),	Analysis Type( "Choose best analysis (EMS REML Bayesian)" ),
+					Show Range Bars( 0 ),	Show Cell Means( 0 ),	Variability Summary Report( 1 ),	Std Dev Chart( 0 ),	Points Jittered( 1 ),
+					Show Box Plots( 1 ),	Show Box Plot Whisker Bars( 0 ),
+					SendToReport( Dispatch(	{"Variability Chart for K5F"},	"2", ScaleBox,	{Min( 11 ), Max( 23 ), Inc( 2 ), Minor Ticks( 0 )}),
+					Dispatch(	{"Variability Chart for K5F"},	"Variability Chart", FrameBox,	{Marker Size( 1 ), DispatchSeg(	Box Plot Seg( 1 ),
+					{Box Type( "Outlier" ), Line Color( "Red" )}), 
+					DispatchSeg( Box Plot Seg( 2 ), {Box Type( "Outlier" ), Line Color( "Red" )}), 
+					DispatchSeg( Box Plot Seg( 3 ), {Box Type( "Outlier" ), Line Color( "Red" )}), 
+					DispatchSeg( Box Plot Seg( 4 ), {Box Type( "Outlier" ), Line Color( "Red" )}), 
+					Row Legend( WAFERNUM,	Color( 1 ),	Color Theme( "Strong" ), Marker( 1 ),
+							  Marker Theme( "Paired" ), Continuous Scale( 0 ),  Reverse Scale( 0 ),  Excluded Rows( 0 )	)})));
+							  
+dtK5verityPlot << save picture(figure_path||"1_FLTW_Verity_Variability.png", png);
+dtK5verityPlot << close window;
+
+dtK5verity << save;
+
+
+Current Data Table (dt2a);
+
+FLTWvar = Variability Chart(Y( :FLTW ), X( :WAFERNUM ), Max Iter( 100 ),
+		Conv Limit( 0.00000001 ), Number Integration Abscissas( 128 ),Number Function Evals( 65536 ),
+		Analysis Type( "Choose best analysis (EMS REML Bayesian)" ),Show Range Bars( 1 ), Show Cell Means( 0 ),	Std Dev Chart( 0 ),	Points Jittered( 0 ),
+		Show Box Plots( 0 ),Show Box Plot Whisker Bars( 0 ),
+		SendToReport(Dispatch({},"2",
+			ScaleBox, {Min( 18 ), Max( 33 ), Inc( 1 ), Minor Ticks( 1 ), Add Ref Line(0, "Dotted","Medium Light Gray","",	1), 
+														   Add Ref Line( 25, "Solid", "Black", "25", 1 ),
+														   Add Ref Line( 28, "Solid", "Black", "28", 1 ),
+														   Add Ref Line( 22, "Dotted", "Black", "22", 1 ),
+														   Add Ref Line( 31, "Dotted", "Black", "31", 1 )
+														   }
+		),
+		Dispatch({},"Variability Chart",
+			FrameBox,
+			{Row Legend(Reader,	Color( 1 ),	Color Theme( "Strong" ),Marker( 1 ),Marker Theme( "Paired" ),
+				Continuous Scale( 0 ),
+				Reverse Scale( 0 ),
+				Excluded Rows( 0 )
+			)}
+		)
+	)
+);
+
+FLTWvar << save picture(figure_path||"1_FLTW_Variability.png", png);
+FLTWvar << close window;
+
+
+RGvar = Variability Chart(Y( :RG ), X( :WAFERNUM ), Max Iter( 100 ),
+		Conv Limit( 0.00000001 ), Number Integration Abscissas( 128 ),Number Function Evals( 65536 ),
+		Analysis Type( "Choose best analysis (EMS REML Bayesian)" ),Show Range Bars( 1 ), Show Cell Means( 0 ),	Std Dev Chart( 0 ),	Points Jittered( 0 ),
+		Show Box Plots( 0 ),Show Box Plot Whisker Bars( 0 ),
+		SendToReport(Dispatch({},"2",
+			ScaleBox, {Min( 18 ), Max( 32 ), Inc( 1 ), Minor Ticks( 1 ), Add Ref Line(0, "Dotted","Medium Light Gray","",	1), 
+														   Add Ref Line( 25, "Solid", "Black", "25", 1 ),
+														   Add Ref Line( 28, "Dotted", "Black", "28", 1 ),
+														   Add Ref Line( 22, "Dotted", "Black", "22", 1 )}
+		),
+		Dispatch({},"Variability Chart",
+			FrameBox,
+			{Row Legend(Reader,	Color( 1 ),	Color Theme( "Strong" ),Marker( 1 ),Marker Theme( "Paired" ),
+				Continuous Scale( 0 ),
+				Reverse Scale( 0 ),
+				Excluded Rows( 0 )
+			)}
+		)
+	)
+);
+
+RGvar << save picture(figure_path||"2_RG_Variability.png", png);
+RGvar << close window;
+
+K3R3calcvar = Variability Chart(Y( :K3R3_CALC ), X( :WAFERNUM ), Max Iter( 100 ),Conv Limit( 0.00000001 ), Number Integration Abscissas( 128 ),Number Function Evals( 65536 ),
+		Analysis Type( "Choose best analysis (EMS REML Bayesian)" ),Show Range Bars( 1 ), Show Cell Means( 0 ),	Std Dev Chart( 0 ),	Points Jittered( 0 ),
+		Show Box Plots( 0 ),Show Box Plot Whisker Bars( 0 ),
+		SendToReport(Dispatch({},"2",
+			ScaleBox, {Min( -8 ), Max( 8 ), Inc( 1 ), Minor Ticks( 0.5 ),  
+														   Add Ref Line( 0, "Solid", "Black", "0", 1 ),
+														   Add Ref Line( 5, "Dotted", "Black", "5", 1 ),
+														   Add Ref Line( -5, "Dotted", "Black", "-5", 1 )}
+		),
+		Dispatch({},"Variability Chart",
+			FrameBox,
+			{Row Legend(Reader,	Color( 1 ),	Color Theme( "Strong" ),Marker( 1 ),Marker Theme( "Paired" ),
+				Continuous Scale( 0 ),
+				Reverse Scale( 0 ),
+				Excluded Rows( 0 )
+			)}
+		)
+	)
+);
+
+K3R3calcvar << save picture(figure_path||"3_K3R3_Variability.png", png);
+K3R3calcvar << close window;
+
+
+KTCRAvar = Variability Chart(Y( :KTCRA_MEDIAN ), X( :WAFERNUM ), Max Iter( 100 ),
+		Conv Limit( 0.00000001 ), Number Integration Abscissas( 128 ),Number Function Evals( 65536 ),
+		Analysis Type( "Choose best analysis (EMS REML Bayesian)" ),Show Range Bars( 1 ), Show Cell Means( 0 ),	Std Dev Chart( 0 ),	Points Jittered( 0 ),
+		Show Box Plots( 0 ),Show Box Plot Whisker Bars( 0 ),
+		SendToReport(Dispatch({},"2",
+			ScaleBox, {Min( 0.2 ), Max( 0.5 ), Inc( 0.02 ), Minor Ticks( 0.02 ), Add Ref Line(0, "Dotted","Medium Light Gray","",	1), 
+														   Add Ref Line( 0.34, "Solid", "Black", "0.34", 1 ),
+														   Add Ref Line( 0.28, "Dotted", "Black", "0.28", 1 ),
+														   Add Ref Line( 0.40, "Dotted", "Black", "0.40", 1 )}
+		),
+		Dispatch({},"Variability Chart",
+			FrameBox,
+			{Row Legend(Reader,	Color( 1 ),	Color Theme( "Strong" ),Marker( 1 ),Marker Theme( "Paired" ),
+				Continuous Scale( 0 ),
+				Reverse Scale( 0 ),
+				Excluded Rows( 0 )
+			)}
+		)
+	)
+);
+
+KTCRAvar << save picture(figure_path||"4_KTCRA_Variability.png", png);
+KTCRAvar << close window;
+
+
+TMR2Cvar = Variability Chart(Y( :TMR2C_MEDIAN ), X( :WAFERNUM ), Max Iter( 100 ),Conv Limit( 0.00000001 ), Number Integration Abscissas( 128 ),Number Function Evals( 65536 ),
+		Analysis Type( "Choose best analysis (EMS REML Bayesian)" ),Show Range Bars( 1 ), Show Cell Means( 0 ),	Std Dev Chart( 0 ),	Points Jittered( 0 ),
+		Show Box Plots( 0 ),Show Box Plot Whisker Bars( 0 ),
+		SendToReport(Dispatch({},"2",
+			ScaleBox, {Min( 80 ), Max( 200 ), Inc( 10 ), Minor Ticks( 5 ), Add Ref Line(0, "Dotted","Medium Light Gray","",	1), 
+														   Add Ref Line( 125, "Solid", "Black", "125", 1 ),
+														   Add Ref Line( 110, "Dotted", "Black", "110", 1 ),
+														   Add Ref Line( 140, "Dotted", "Black", "140", 1 )}
+		),
+		Dispatch({},"Variability Chart",
+			FrameBox,
+			{Row Legend(Reader,	Color( 1 ),	Color Theme( "Strong" ),Marker( 1 ),Marker Theme( "Paired" ),
+				Continuous Scale( 0 ),
+				Reverse Scale( 0 ),
+				Excluded Rows( 0 )
+			)}
+		)
+	)
+);
+
+TMR2Cvar << save picture(figure_path||"5_TMR2C_Variability.png", png);
+TMR2Cvar << close window;
+
+RMIN2Cvar = Variability Chart(Y( :RMIN2C_MEDIAN ), X( :WAFERNUM ), Max Iter( 100 ),
+		Conv Limit( 0.00000001 ), Number Integration Abscissas( 128 ),Number Function Evals( 65536 ),
+		Analysis Type( "Choose best analysis (EMS REML Bayesian)" ),Show Range Bars( 1 ), Show Cell Means( 0 ),	Std Dev Chart( 0 ),	Points Jittered( 0 ),
+		Show Box Plots( 0 ),Show Box Plot Whisker Bars( 0 ),
+		SendToReport(Dispatch({},"2",
+			ScaleBox, {Min( 20 ), Max( 60 ), Inc( 10 ), Minor Ticks( 5 ), Add Ref Line(0, "Dotted","Medium Light Gray","",	1), 
+														   Add Ref Line( 38, "Solid", "Black", "38", 1 ),
+														   Add Ref Line( 33, "Dotted", "Black", "33", 1 ),
+														   Add Ref Line( 43, "Dotted", "Black", "43", 1 )}
+		),
+		Dispatch({},"Variability Chart",
+			FrameBox,
+			{Row Legend(Reader,	Color( 1 ),	Color Theme( "Strong" ),Marker( 1 ),Marker Theme( "Paired" ),
+				Continuous Scale( 0 ),
+				Reverse Scale( 0 ),
+				Excluded Rows( 0 )
+			)}
+		)
+	)
+);
+
+RMIN2Cvar << save picture(figure_path||"6_RMIN2C_Variability.png", png);
+RMIN2Cvar << close window;
+
+
+RL2Cvar = Variability Chart(Y( :RL2C_MEDIAN ), X( :WAFERNUM ), Max Iter( 100 ),
+		Conv Limit( 0.00000001 ), Number Integration Abscissas( 128 ),Number Function Evals( 65536 ),
+		Analysis Type( "Choose best analysis (EMS REML Bayesian)" ),Show Range Bars( 1 ), Show Cell Means( 0 ),	Std Dev Chart( 0 ),	Points Jittered( 0 ),
+		Show Box Plots( 0 ),Show Box Plot Whisker Bars( 0 ),
+		SendToReport(Dispatch({},"2",
+			ScaleBox, {Min( 5 ), Max( 30 ), Inc( 5 ), Minor Ticks( 2 ), Add Ref Line(0, "Dotted","Medium Light Gray","",	1), 
+														   Add Ref Line( 13, "Solid", "Black", "13", 1 ),
+														   Add Ref Line( 17, "Dotted", "Black", "17", 1 ),
+														   Add Ref Line( 9, "Dotted", "Black", "9", 1 )}
+		),
+		Dispatch({},"Variability Chart",
+			FrameBox,
+			{Row Legend(Reader,	Color( 1 ),	Color Theme( "Strong" ),Marker( 1 ),Marker Theme( "Paired" ),
+				Continuous Scale( 0 ),
+				Reverse Scale( 0 ),
+				Excluded Rows( 0 )
+			)}
+		)
+	)
+);
+
+RL2Cvar << save picture(figure_path||"7_RL2C_Variability.png", png);
+RL2Cvar << close window;
+
+
+A1HEffectivevar = Variability Chart(Y( :A1_HEffective_MEDIAN ), X( :WAFERNUM ), Max Iter( 100 ),
+		Conv Limit( 0.00000001 ), Number Integration Abscissas( 128 ),Number Function Evals( 65536 ),
+		Analysis Type( "Choose best analysis (EMS REML Bayesian)" ),Show Range Bars( 1 ), Show Cell Means( 0 ),	Std Dev Chart( 0 ),	Points Jittered( 0 ),
+		Show Box Plots( 0 ),Show Box Plot Whisker Bars( 0 ),
+		SendToReport(Dispatch({},"2",
+			ScaleBox, {Min( 0 ), Max( 500 ), Inc( 50 ), Minor Ticks( 5 ), Add Ref Line(30, "Dotted","Medium Light Gray","",	1)}
+		),
+		Dispatch({},"Variability Chart",
+			FrameBox,
+			{Row Legend(Reader,	Color( 1 ),	Color Theme( "Strong" ),Marker( 1 ),Marker Theme( "Paired" ),
+				Continuous Scale( 0 ),
+				Reverse Scale( 0 ),
+				Excluded Rows( 0 )
+			)}
+		)
+	)
+);
+
+A1HEffectivevar << save picture(figure_path||"A1_HEFF_Variability.png", png);
+A1HEffectivevar << close window;
+
+
+A1AHEffectivevar = Variability Chart(Y( :A1A_HEffective_MEDIAN ), X( :WAFERNUM ), Max Iter( 100 ),
+		Conv Limit( 0.00000001 ), Number Integration Abscissas( 128 ),Number Function Evals( 65536 ),
+		Analysis Type( "Choose best analysis (EMS REML Bayesian)" ),Show Range Bars( 1 ), Show Cell Means( 0 ),	Std Dev Chart( 0 ),	Points Jittered( 0 ),
+		Show Box Plots( 0 ),Show Box Plot Whisker Bars( 0 ),
+		SendToReport(Dispatch({},"2",
+			ScaleBox, {Min( 0 ), Max( 500 ), Inc( 50 ), Minor Ticks( 5 ), Add Ref Line(30, "Dotted","Black","",	1)}
+		),
+		Dispatch({},"Variability Chart",
+			FrameBox,
+			{Row Legend(Reader,	Color( 1 ),	Color Theme( "Strong" ),Marker( 1 ),Marker Theme( "Paired" ),
+				Continuous Scale( 0 ),
+				Reverse Scale( 0 ),
+				Excluded Rows( 0 )
+			)}
+		)
+	)
+);
+
+A1AHEffectivevar << save picture(figure_path||"8_A1A_HEFF_Variability.png", png);
+A1AHEffectivevar << close window;
+
+A1ASBCFvar = Variability Chart(Y( :A1A_SBCF_MEDIAN ), X( :WAFERNUM ), Max Iter( 100 ),
+		Conv Limit( 0.00000001 ), Number Integration Abscissas( 128 ),Number Function Evals( 65536 ),
+		Analysis Type( "Choose best analysis (EMS REML Bayesian)" ),Show Range Bars( 1 ), Show Cell Means( 0 ),	Std Dev Chart( 0 ),	Points Jittered( 0 ),
+		Show Box Plots( 0 ),Show Box Plot Whisker Bars( 0 ),
+		SendToReport(Dispatch({},"2",
+			ScaleBox, {Min( -150 ), Max( 20 ), Inc( 15 ), Minor Ticks( 5 ), Add Ref Line(-70, "Dotted","Black","-70",	1)}
+		),
+		Dispatch({},"Variability Chart",
+			FrameBox,
+			{Row Legend(Reader,	Color( 1 ),	Color Theme( "Strong" ),Marker( 1 ),Marker Theme( "Paired" ),
+				Continuous Scale( 0 ),
+				Reverse Scale( 0 ),
+				Excluded Rows( 0 )
+			)}
+		)
+	)
+);
+
+A1ASBCFvar << save picture(figure_path||"9_A1A_SBCF_Variability.png", png);
+A1ASBCFvar << close window;
+
+A1APinAnglevar = Variability Chart(Y( :A1A_PinAngleSB_MEDIAN ), X( :WAFERNUM ), Max Iter( 100 ),
+		Conv Limit( 0.00000001 ), Number Integration Abscissas( 128 ),Number Function Evals( 65536 ),
+		Analysis Type( "Choose best analysis (EMS REML Bayesian)" ),Show Range Bars( 1 ), Show Cell Means( 0 ),	Std Dev Chart( 0 ),	Points Jittered( 0 ),
+		Show Box Plots( 0 ),Show Box Plot Whisker Bars( 0 ),
+		SendToReport(Dispatch({},"2",
+			ScaleBox, {Min( 80 ), Max( 100 ), Inc( 5 ), Minor Ticks( 1 ), Add Ref Line(90, "Dotted","Black","90",	1)}
+		),
+		Dispatch({},"Variability Chart",
+			FrameBox,
+			{Row Legend(Reader,	Color( 1 ),	Color Theme( "Strong" ),Marker( 1 ),Marker Theme( "Paired" ),
+				Continuous Scale( 0 ),
+				Reverse Scale( 0 ),
+				Excluded Rows( 0 )
+			)}
+		)
+	)
+);
+
+A1APinAnglevar << save picture(figure_path||"10_A1A_PinAngleSB_Variability.png", png);
+A1APinAnglevar << close window;
+
+H90var = Variability Chart(Y( :H90_Elem_MEDIAN ), X( :WAFERNUM ), Max Iter( 100 ),
+		Conv Limit( 0.00000001 ), Number Integration Abscissas( 128 ),Number Function Evals( 65536 ),
+		Analysis Type( "Choose best analysis (EMS REML Bayesian)" ),Show Range Bars( 1 ), Show Cell Means( 0 ),	Std Dev Chart( 0 ),	Points Jittered( 0 ),
+		Show Box Plots( 0 ),Show Box Plot Whisker Bars( 0 ),
+		SendToReport(Dispatch({},"2",
+			ScaleBox, {Min( -4500 ), Max( -1500 ), Inc( 300 ), Minor Ticks( 100 ), Add Ref Line(-2000, "Dotted","Black","",	1)}
+		),
+		Dispatch({},"Variability Chart",
+			FrameBox,
+			{Row Legend(Reader,	Color( 1 ),	Color Theme( "Strong" ),Marker( 1 ),Marker Theme( "Paired" ),
+				Continuous Scale( 0 ),
+				Reverse Scale( 0 ),
+				Excluded Rows( 0 )
+			)}
+		)
+	)
+);
+
+H90var << save picture(figure_path||"11_H90_Variability.png", png);
+H90var << close window;
+
+H50var = Variability Chart(Y( :H50_Elem_MEDIAN ), X( :WAFERNUM ), Max Iter( 100 ),
+		Conv Limit( 0.00000001 ), Number Integration Abscissas( 128 ),Number Function Evals( 65536 ),
+		Analysis Type( "Choose best analysis (EMS REML Bayesian)" ),Show Range Bars( 1 ), Show Cell Means( 0 ),	Std Dev Chart( 0 ),	Points Jittered( 0 ),
+		Show Box Plots( 0 ),Show Box Plot Whisker Bars( 0 ),
+		SendToReport(Dispatch({},"2",
+			ScaleBox, {Min( -7000 ), Max( -3000 ), Inc( 500 ), Minor Ticks( 100 ), Add Ref Line(-4000, "Dotted","Black","-4000",	1)}
+		),
+		Dispatch({},"Variability Chart",
+			FrameBox,
+			{Row Legend(Reader,	Color( 1 ),	Color Theme( "Strong" ),Marker( 1 ),Marker Theme( "Paired" ),
+				Continuous Scale( 0 ),
+				Reverse Scale( 0 ),
+				Excluded Rows( 0 )
+			)}
+		)
+	)
+);
+
+H50var << save picture(figure_path||"12_H50_Variability.png", png);
+H50var << close window;
+
+H10var = Variability Chart(Y( :H10_Elem_MEDIAN ), X( :WAFERNUM ), Max Iter( 100 ),
+		Conv Limit( 0.00000001 ), Number Integration Abscissas( 128 ),Number Function Evals( 65536 ),
+		Analysis Type( "Choose best analysis (EMS REML Bayesian)" ),Show Range Bars( 1 ), Show Cell Means( 0 ),	Std Dev Chart( 0 ),	Points Jittered( 0 ),
+		Show Box Plots( 0 ),Show Box Plot Whisker Bars( 0 ),
+		SendToReport(Dispatch({},"2",
+			ScaleBox, {Min( 2000 ), Max( 6000 ), Inc( 500 ), Minor Ticks( 100 ), Add Ref Line(4000, "Solid","Black","4000",	1),
+																				 Add Ref Line(3000, "Dotted","Black","3000",	1)
+			}
+		),
+		Dispatch({},"Variability Chart",
+			FrameBox,
+			{Row Legend(Reader,	Color( 1 ),	Color Theme( "Strong" ),Marker( 1 ),Marker Theme( "Paired" ),
+				Continuous Scale( 0 ),
+				Reverse Scale( 0 ),
+				Excluded Rows( 0 )
+			)}
+		)
+	)
+);
+
+H10var << save picture(figure_path||"13_H10_Variability.png", png);
+H10var << close window;
+
+// SH trend:
+
+XYplot = Bivariate(	Y( :A1_HEffective_MEDIAN, :A1A_HEffective_MEDIAN, :A1_AmpLowField_MEDIAN, :A1A_AmpLowField_MEDIAN,   ),
+					X( :EA1SH_MEDIAN ),);
+					
+parm_list = {"A1_HEffective_MEDIAN", "A1A_HEffective_MEDIAN", "A1_AmpLowField_MEDIAN", "A1A_AmpLowField_MEDIAN" };
+
+for(i=1,i<=N Items(parm_list),i++,
+	this_parm = parm_list[i];
+	XYplot[i] << save picture(figure_path||"SHtrend_"||this_parm||".png", png);
+);
+
+XYplot << close window;
+dt2a << save;
+
+Current Data Table(dt2);
+
+TMRULISODist = Distribution(Stack( 1 ),Continuous Distribution(Column( :TMRULISO ),Horizontal Layout( 1 ),	Vertical( 0 ),CDF Plot( 1 )),
+				 By( :WAFERNUM  ),
+				 SendToReport(Dispatch({"", "TMRULISO"},"Distrib Outlier Box",FrameBox,	{Frame Size( 398, 46 )}),
+				 Dispatch({"", "TMRULISO"},	"Distrib Histogram",FrameBox,{Frame Size( 398, 208 )}),
+				 Dispatch({"", "TMRULISO", "CDF Plot"},"Distrib CDF",FrameBox,{Line Width Scale( 2 )})));
+				 
+
+For( i = 1, i <= N Items( TMRULISODist ), i++,
+		  riso = Report( TMRULISODist[i] ); // get the report
+		  image = riso << getpicture;
+		  image << save picture( figure_path||"01_TMRULISODist_"||Char( i )||".png", "png" );
+);
+
+TMRULISODist << close window;
+
+TMRRMIN2CPlot =  Bivariate(
+				Y( :TMR2C ),
+				X( :RMIN2C ),
+				By( :WAFERNUM  ),
+				SendToReport(	Dispatch(	{},	"1",	ScaleBox,	{Min( 0 ), Max( 60 ), Inc( 10 ), Minor Ticks( 1 )}	),
+								Dispatch(	{},	"2",	ScaleBox,	{Min( 0 ), Max( 220 ), Inc( 20 ), Minor Ticks( 1 )}	),
+								Dispatch(	{},	"Bivar Plot", FrameBox,		{Marker Size( 2 ), 
+								Row Legend(	:Reader,	Color( 1 ),	Color Theme( "Strong" ),				
+								Marker( 1 ),	Marker Theme( "Paired" ),	Continuous Scale( 0 ),	Reverse Scale( 0 ),	Excluded Rows( 0 ))})
+				)
+);
+
+
+For( i = 1, i <= N Items( TMRRMIN2CPlot ), i++,
+		  r = Report( TMRRMIN2CPlot[i] ); // get the report
+		  image = r << getpicture;
+		  image << save picture( figure_path||"01_2C_TMRRMIN4CPlot_"||Char( i )||".png", "png" );
+);
+
+TMRRMIN2CPlot << close window;
+
+
+
+TMRRMIN4CPlot =  Bivariate(
+				Y( :TMR4C ),
+				X( :RMIN4C ),
+				By( :WAFERNUM  ),
+				SendToReport(	Dispatch(	{},	"1",	ScaleBox,	{Min( 0 ), Max( 60 ), Inc( 10 ), Minor Ticks( 1 )}	),
+								Dispatch(	{},	"2",	ScaleBox,	{Min( 0 ), Max( 220 ), Inc( 20 ), Minor Ticks( 1 )}	),
+								Dispatch(	{},	"Bivar Plot", FrameBox,		{Marker Size( 2 ), 
+								Row Legend(	:Reader,	Color( 1 ),	Color Theme( "Strong" ),				
+								Marker( 1 ),	Marker Theme( "Paired" ),	Continuous Scale( 0 ),	Reverse Scale( 0 ),	Excluded Rows( 0 ))})
+				)
+);
+
+
+For( i = 1, i <= N Items( TMRRMIN4CPlot ), i++,
+		  r = Report( TMRRMIN4CPlot[i] ); // get the report
+		  image = r << getpicture;
+		  image << save picture( figure_path||"01_4C_TMRRMIN4CPlot_"||Char( i )||".png", "png" );
+);
+
+TMRRMIN4CPlot << close window;
+
+dt2 << save;
+
+
+

@@ -1,0 +1,44 @@
+// --------------------------------------------
+// Delta HT-RT calc (JMP 12)
+// JMP script to add delta HT (w TFC) - RT (no TFC) columns and their quantiles 
+// Version 1.0
+// Author: Manjit P./Srikanth G.
+// Date  : 07/26/2017
+// Revision History
+// No. When		 Who		What
+// 
+//---------------------------------------------
+
+Clear Globals();
+Clear Log();
+
+// Give path toJMP parameter file:
+dt_col = open("C:\Design\Scripts\JMP Scripts\GO-DataAnalysis\Manjit\JMP\Quasi\DeltaHT_NT_colTable.jmp");
+
+// Give path to _BQST_raw ultrarunner output file:
+dt = open("C:\TDMR (Local)\1_EXP\TDMRDTS\Drive_FA\Quasi\TDMRDTS_BQST_Raw_MB_271364_TW2_RU.jmp");
+
+// Add the below 2 columns if not available in raw data:
+dt << New Column("Kink_QSNR2", Formula(20 * Log10(:TFC_Kink_Amp / :ADN2_Sig_N)));
+dt << New Column("Kink_RNG_QSNR2", Formula(20 * Log10(:TFC_Kink_Amp / :ADN2_Rng_N), evalformula));
+
+
+colhdr = dt_col<<Get Column Names(string);
+NT_col = column(dt_col, "NT")<<Get as matrix;
+HT_col = column(dt_col, "HT")<<Get as matrix;
+Delta_formula_col = column(dt_col, "Delta_HT_NT_formula")<<Get as matrix;
+Delta_name_col = column(dt_col, "deltaColName")<<Get as matrix;
+Quantile_col = column(dt_col, "Q_formula")<<Get as matrix;
+Quantile_name_col = column(dt_col, "Q_formula_colName")<<Get as matrix;
+
+
+for (i=1, i<=NRows(dt_col), i++,
+eval(parse("dt << new column(\!"" || Delta_name_col[i] || "\!", formula(" || Delta_formula_col[i] || "));"));
+eval(parse("dt << new column(\!"" || Quantile_name_col[i] || "\!", formula(" || Quantile_col[i] || "));"));
+);
+
+/*
+for (i=1, i<=NRows(dt_col), i++,
+eval(parse("dt << new column(\!"" || Quantile_name_col[i] || "\!", formula(" || Quantile_col[i] || "));"));
+);
+*/

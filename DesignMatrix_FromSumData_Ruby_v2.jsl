@@ -1,0 +1,127 @@
+// ----------------------------------------------------------------------------
+//
+// Script to create Design Matrix for Single TW LeoC Ruby+/DRUA wafers
+// to run Quasi data through Ultra Runner
+//  
+// JMP 12
+//  
+// Version 1.0
+// Author: Manjit P.
+// Date  : 07/25/2018
+// Revision History
+// No.	When		 	Who				What
+// 
+// 
+//					
+//-----------------------------------------------------------------------------
+
+
+Clear Log();
+clear Globals();
+Include("C:\Design\Scripts\JMP Scripts\GO-DataAnalysis\Manjit\JMP\login.jsl");
+
+impala3 = "DSN=BDP3-Impala-Prod;";    // BDP database connection
+
+DB2 = "DSN="||DSN_helga||";UID="||UID_helga||";PWD="||PWD_helga||";";  // for DB2
+
+// TW grouping in Pearl format
+twgroup = Open("C:\Design\Scripts\JMP Scripts\GO-DataAnalysis\Manjit\JMP\A4\tw_group_Quad.jmp");
+
+// Provide wafer numbers separated by comma
+
+wafer_list = "287820,291002";
+
+// Raw R3 and K3 verity data in CHM 
+
+dt1 = open database(DB2,
+     "SELECT WAFERNUM, OP, ROW, COLUMN, CDBOT
+      FROM WTOOLDET.VERITYSEM 
+      where wafernum in ("||wafer_list||") and 
+      op in ('1822','2213') and 
+      LASTVIEW = 'Y'
+      "
+     , "K3F_CDBOT"
+     
+    );
+
+
+dt1<< New Column("Reader",character, nominal, Formula(Match(:OP, "1822", "Lower", "2213", "Upper")),evalformula);
+:Reader << Delete Formula;
+dt1 << Delete Columns("OP");
+dt1 << Select Where (:CDBOT==0 | :CDBOT > 600);
+dt1 << Delete Rows;
+:CDBOT << set name("K3F");
+dt1 << new column("quad", numeric, continuous, formula(Ceiling(:row / 48)));   // 48 rows in one Ruby+ quad
+dt1 << move selected columns({"quad", "Reader"}, after ("COLUMN"));
+
+dt1 << Update (	With(twgroup), Match Columns( :quad = quad),);
+
+
+// Chimp summary data
+
+dt2 = open database(DB2,
+     "SELECT WAFERNUM, PARMNAME, MEDIAN 
+      FROM WAFTOOLSUM.CHIMP 
+      WHERE WAFERNUM IN ("||wafer_list||") and 
+      LASTVIEW = 'Y' and
+      PARMNAME in ('KTCRAL', 'KTCRAU', 'RMIN2UC', 'RMIN2LC', 'RL2LC', 'RL2UC', 'TMR2LC', 'TMR2UC' )
+      " 
+      , "CHIMP_SUM"    
+    );
+
+
+dt2 << New column("Parameter", Formula(If(  Right(:PARMNAME, 1) == "L", Remove(:PARMNAME), 
+											Right(:PARMNAME, 1) == "U", Remove(:PARMNAME), 
+											Right(:PARMNAME, 2) == "LC", Substitute(:PARMNAME, "LC", "C"), 
+											Right(:PARMNAME, 2) == "UC", Substitute(:PARMNAME, "UC", "C"))), evalformula);
+											
+dt2 << New column("Reader", formula(If(Right(:PARMNAME, 1) == "L", "Lower", 
+									Right(:PARMNAME, 1) == "U", "Upper", 
+									Right(:PARMNAME, 2) == "LC", "Lower", 
+									Right(:PARMNAME, 2) == "UC", "Upper")), evalformula);
+									
+:Parameter << Delete Formula;
+:Reader << Delete Formula;
+
+
+// Transpose Chimp
+
+dt3 = dt2 << Transpose(	columns( :MEDIAN ),	By( :WAFERNUM, :Reader ), Label( :Parameter ), Output Table( "CHIMP_SUMT" ));
+dt3 << Delete Columns("Label");
+
+close(dt2, no save);
+
+// Update tables
+dt1 << Update (	With(dt3), Match Columns( :WAFERNUM = :WAFERNUM, :Reader = :Reader));
+dt1 << New Column("rmin_rlead", formula(:RMIN2C - :RL2C), evalformula);
+
+close(twgroup, no save);
+close(dt3, no save);
+
+// Change column names to mathc ultrarunner columns
+
+dt1:WAFERNUM << set name("waf");
+dt1:Reader << set name("reader");
+dt1:KTCRA << set name("ra");
+dt1:TMR2C << set name("tmr");
+
+// Sumamrize to get Design Matrix
+
+dt_sum=dt1<< Summary(
+					Group( :waf, :reader, :tw_group ),
+					Mean( :tmr ),
+					Mean( :K3F ),
+					Mean( :ra ),
+					Mean( :rmin_rlead ), link to original data table(0) );
+
+dt_sum<< New Column("EXP",character);
+dt_sum<< Move Selected Columns({"EXP"}, To First);
+dt_sum << Delete Columns("N Rows");
+dt_sum << New Column("Mean(Rlead)", formula(Match(:reader, "Lower", 70, "Upper", 25)), eval formula);
+dt_sum << New Column("tw", formula(Match(:tw_group, "TW1", "wide", "TW2", "mid", "TW3", "narr")), eval formula);
+
+dt_sum << set name("_DesignMatrix");
+
+close(dt1, no save);
+
+

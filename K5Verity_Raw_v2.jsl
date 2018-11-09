@@ -1,0 +1,37 @@
+
+
+//-----------------------------------
+//
+// K5 VERITY TW DATA
+//
+// Manjit Pathak 09/14/2018
+//
+//-----------------------------------
+
+
+
+// Raw R5 (859) and K5 (1717) verity data
+
+dtK5verity = open database("DSN="||DSN_helga||";UID="||UID_helga||";PWD="||PWD_helga||";",
+     "SELECT WAFERNUM, OP, ROW, COLUMN, CDBOT
+      FROM WTOOLDET.VERITYSEM 
+      where wafernum in ("||wafer_list||") and 
+      op in ('859','1717') and 
+      LASTVIEW = 'Y'
+      "
+     ,
+     
+    );
+
+dtK5verity << New Column("Reader",character, nominal, Formula(Match(:op, "859", "Lower", "1717", "Upper")),evalformula);
+:Reader << Delete Formula;
+dtK5verity << Delete Columns("op");
+dtK5verity << Move selected columns({"wafernum","Reader"}, to first);
+dtK5verity << Select Where (:CDBOT==0);
+dtK5verity << Delete Rows;
+:CDBOT << set name("K5F");
+dtK5verity << new column("K5F_", numeric, continuous, formula(:K5F+10));
+dtK5verity << new column("quad", numeric, continuous, formula(Ceiling(:row / 48)));
+dtK5verity << move selected columns({"quad", "Reader"}, after ("COLUMN"));
+dtK5verity << save (data_path||ExpID||"_CHM_K5F.jmp");
+

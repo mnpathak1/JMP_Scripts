@@ -1,0 +1,984 @@
+
+// -----------------------------------------------------------------------------------------------------------------------------
+//
+// Script to estimate Median, mean & sigma summaryies, calculate Yield and losses in LeoC 12pad TDMR FB in PHO data
+// 
+// 
+// JMP 12
+// LeoC 12pad PHO yield summary 
+// Version 1.0
+// Author: Manjit P.
+// Date  : 04/04/2018
+// Revision History
+// No. When		 		Who				What
+// 1
+//			
+//------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+clear log();
+
+
+//Give path to save data:
+WorkFolderPath = "C:\Design\Scripts\JMP Scripts\GO-DataAnalysis\Manjit\JMP\Quasi\";
+
+// Select the data file:
+dt_data=Open("C:\TDMR (Local)\0_ProductRamp\LeoC\Quasi\LeoC 12-pad Mega Data_Sample03p.jmp");
+
+// Select parameter file for summary and spec:
+SpecFile = Open("C:\Design\Scripts\JMP Scripts\GO-DataAnalysis\Manjit\JMP\Quasi\ParamFile_LeoC_AND.jmp");
+
+// NOTE THE BELLEW:
+// Define summarize by which columns:
+// Example:  char_sum="Design, :WAFERNUM, :SH"
+// Don't use Readers with Upper-Lower for summary, they are spec'ed separately
+// Data should be in MR1 (Lower) & MR2 (upper) separate column format
+
+char_sum=":EWR, :SA_MB, :WAFERNUM, :SH";
+
+
+//_____________________________________________________________________________________________________________________________
+//_____________________________________________________________________________________________________________________________
+//Lower reader
+
+SpecFile << Select Where(:Reader=="L");
+dt_Clib  = SpecFile << Subset(Output Table( "RL_Spec" ), Selected Rows( 1 ), selected columns( 0 ));
+SpecFile << Clear Row Selection;
+
+
+// Add missing columns to data table
+
+dt_Clib<<Select Where(:Included_in_Summary>=0 );
+dt_rename=dt_Clib<<Subset(columns( :Included_in_Summary,:New_Name, :Formula, :Original_Name ),Selected Rows, Output Table Name("iRename"));
+dt_Clib<<Clear Row Selection;
+col_Nname=Column(dt_Rename,"New_Name");
+col_Oname=Column(dt_Rename,"Original_Name");
+
+col_key={};
+exp_tmp="";
+kk=NRow(dt_rename);
+
+
+for(i=1,i<=kk,i++,
+	if ( col_Nname[i]==col_Oname[i], 
+		 col_key[i]=Parse(Eval("Column(dt_data, \!""||col_Oname[i]||"\!")")),
+	//else			
+		if (Column(dt_rename,"Formula")[i]==0,
+			temp=expr(Parse(Eval(":Name(\!""||col_Oname[i]||"\!")")));
+			col_key[i]=dt_data << NewColumn(col_Nname[i],Formula(eval(temp))),
+			//else if
+			Column(dt_rename,"Formula")[i]==1 & !Is Missing(col_Oname[i]),
+			temp=expr(Parse(Eval(col_Oname[i])));
+			col_key[i]=dt_data << NewColumn(col_Nname[i],Formula(eval(temp)), Evalformula),
+			//else if
+			Column(dt_rename,"Formula")[i]==1 & Is Missing(col_Oname[i]),
+			col_key[i]=dt_data << NewColumn(col_Nname[i],Numeric, Continuous);	
+			);
+		);
+	exp_tmp = exp_tmp||Eval("\!""||col_Nname[i]||"\!", ");		
+	);
+
+
+// Define filter and spec
+
+dt_Clib<<Select Where(:Filter==1 );
+dt_filter=dt_Clib<<Subset(columns( :New_Name,:Filter, :Filter_Low, :Filter_High ),Selected Rows, Output Table Name("iFilter"));
+dt_Clib<<Clear Row Selection;
+
+dt_Clib<<Select Where(!Is Missing(:Spec_Order) );
+dt_spec=dt_Clib<<Subset(columns(:New_Name,:Spec_Order,:Spec_Low,:Spec_High),Selected Rows, Output Table Name("iSpec"));
+dt_spec<<Sort(By(:Spec_Order), Order(Ascending),Replace Table);
+Column(dt_spec,"Spec_Order")<<Set Formula(Row(),EvalFormula);
+dt_Clib<<Clear Row Selection;
+
+// For MR1 low and high separate
+
+dt_spec<<Current Data Set();
+row_MRR=dt_spec<<Get Rows Where(:New_Name=="RCold_Res_MR1");
+dt_spec<<Add Rows(1,row_MRR[1]);
+:New_Name[row_MRR[1]+1]="RCold_Res_MR1"; 
+:Spec_Low[row_MRR[1]+1]=Empty();
+:Spec_High[row_MRR[1]+1]=:Spec_High[row_MRR[1]];
+:Spec_High[row_MRR[1]]=Empty();
+
+col_1=dt_spec<<New Column("Spec_Name",Character);
+:Spec_Name[row_MRR[1]]="RCold_Res_MR1_Low";
+:Spec_Name[row_MRR[1]+1]="RCold_Res_MR1_High";
+//:Spec_Name[row_MRR[1]+2]="MR1_Wide";
+For each row( If(! Contains( Concat( :New_Name ), "RCold_Res_MR1" ), Spec_Name=:New_Name(Row);););
+
+//_____________________________________________________________________________________________________________________________
+//Add column "Filter Pass". Pass=1, Fail=0.
+
+colName_f={};
+col_fpass={};
+colName_r={};
+col_rpass={};
+colName_fd={};
+col_fpassDe={};
+colName_rd={};
+col_rpassDe={};
+
+exp_tmp="";
+For (i=1,i<=NRow(dt_filter),i++,
+	 tmp_column=Column(dt_filter,"New_Name")[i];
+	 tmp_low=Column(dt_filter,"Filter_Low")[i];
+	 tmp_high=Column(dt_filter,"Filter_High")[i];
+	 
+	 if (i==NRow(dt_filter),
+		exp_tmp=exp_tmp||"("||char(Eval(tmp_low))||"<="||":Name(\!""||tmp_column||"\!")"||"<="||char(Eval(tmp_high))||")",
+		//else
+		exp_tmp=exp_tmp||"("||char(Eval(tmp_low))||"<="||":Name(\!""||tmp_column||"\!")"||"<="||char(Eval(tmp_high))||") &";
+		)
+	);
+
+
+exp_tmp="If ("||exp_tmp||",1,0)"; 
+
+Current Data Table(dt_data);
+col_filter=dt_data<<NewColumn("Filter_MR1",Formula(Eval(Parse(exp_tmp))));
+
+//_____________________________________________________________________________________________________________________________
+//Add independent pass and fail columns. Pass=1, Fail=0.
+//1. Independent pass/fail within filter pass group.
+
+exp_tmp="";
+For (i=1,i<=NRow(dt_spec),i++,
+	 tmp_column=Column(dt_spec,"New_Name")[i];
+	 tmp_column2=Column(dt_spec,"Spec_Name")[i];
+	 colName_f[i]="FilterPassIn_"||Munger(tmp_column2, 1, "_BQST","");
+	 tmp_low=Column(dt_spec,"Spec_Low")[i];
+	 tmp_high=Column(dt_spec,"Spec_High")[i];
+	 
+	 if (  !Is Missing(tmp_low)&!Is Missing(tmp_high),
+		exp_tmp="If (:Filter_MR1==0,Empty(),If(("||char(Eval(tmp_low))||"<="||":Name(\!""||tmp_column||"\!")"||"<="||char(Eval(tmp_high))||"),1,0))",
+		//else
+		If (Is Missing(tmp_low),
+			exp_tmp="If (:Filter_MR1==0,Empty(),If(("||":Name(\!""||tmp_column||"\!")"||"<="||char(Eval(tmp_high))||"),1,0))",
+			//else
+			exp_tmp="If (:Filter_MR1==0,Empty(),If(("||char(Eval(tmp_low))||"<="||":Name(\!""||tmp_column||"\!")"||"),1,0))";
+			)
+		);
+		
+	 col_fpass[i]=dt_data<<NewColumn(colName_f[i],Formula(Eval(Parse(exp_tmp))));	
+	);
+
+
+//_____________________________________________________________________________________________________________________________
+//2. Independent pass/fail in all parts.
+
+exp_tmp="";
+For (i=1,i<=NRow(dt_spec),i++,
+	 tmp_column=Column(dt_spec,"New_Name")[i];
+	 tmp_column2=Column(dt_spec,"Spec_Name")[i];
+	 colName_r[i]="RawPassIn_"||Munger(tmp_column2, 1, "_BQST","");
+	 tmp_low=Column(dt_spec,"Spec_Low")[i];
+	 tmp_high=Column(dt_spec,"Spec_High")[i];
+	 
+	 if (  !Is Missing(tmp_low)&!Is Missing(tmp_high),
+		exp_tmp="If(("||char(Eval(tmp_low))||"<="||":Name(\!""||tmp_column||"\!")"||"<="||char(Eval(tmp_high))||"),1,0)",
+		//else
+		If (Is Missing(tmp_low),
+			exp_tmp="If(("||":Name(\!""||tmp_column||"\!")"||"<="||char(Eval(tmp_high))||"),1,0)",
+			//else
+			exp_tmp="If(("||char(Eval(tmp_low))||"<="||":Name(\!""||tmp_column||"\!")"||"),1,0)";
+			)
+		);
+	 col_rpass[i]=dt_data<<NewColumn(colName_r[i],Formula(Eval(Parse(exp_tmp))));	
+	);
+
+
+
+//__________________________________________________________________________________________________________________
+//Add dependent pass and fail columns. Pass=1, Fail=0.
+//1. dependent pass/fail within filter pass group.
+
+exp_tmp="";
+For (i=1,i<=NRow(dt_spec),i++,
+	 tmp_column=Column(dt_spec,"New_Name")[i];
+	 tmp_column2=Column(dt_spec,"Spec_Name")[i];
+	 colName_fd[i]="FilterLossDe_"||Munger(tmp_column2, 1, "_BQST","");
+	 
+	 if (i==1,
+		 exp_tmp="If (:Filter_MR1==0,Empty(),"||"!:Name(\!""||colName_f[1]||"\!");"||")",
+		 
+		 //else
+		 exp_tmp=":Name(\!""||colName_f[1]||"\!")";
+		 For(j=2,j<=i-1,j++,
+			  exp_tmp=exp_tmp || "*" ||":Name(\!""||colName_f[j]||"\!")";
+			 );
+		 exp_tmp="If (:Filter_MR1==0 |"||exp_tmp||"==0,Empty(),"||"!:Name(\!""||colName_f[i]||"\!");"||")";	 
+		);	 
+			
+	col_fpassDe[i]=dt_data<<NewColumn(colName_fd[i],Formula(Eval(Parse(exp_tmp))));	
+	);
+	
+//__________________________________________________________________________________________________________________
+//2. Dependent pass/fail in all parts.
+
+exp_tmp="";
+For (i=1,i<=NRow(dt_spec),i++,
+	 tmp_column=Column(dt_spec,"New_Name")[i];
+	 tmp_column2=Column(dt_spec,"Spec_Name")[i];
+	 colName_rd[i]="RawLossDe_"||Munger(tmp_column2, 1, "_BQST","");
+	 
+	 if (i==1,
+		 exp_tmp="!:Name(\!""||colName_r[1]||"\!");",
+		 
+		 //else
+		 exp_tmp=":Name(\!""||colName_r[1]||"\!")";
+		 For(j=2,j<=i-1,j++,
+			  exp_tmp=exp_tmp || "*" ||":Name(\!""||colName_r[j]||"\!")";
+			 );
+		 exp_tmp="If ("||exp_tmp||"==0,Empty(),"||"!:Name(\!""||colName_r[i]||"\!");"||")";	 
+		);	 
+	
+	col_rpassDe[i]=dt_data<<NewColumn(colName_rd[i],Formula(Eval(Parse(exp_tmp))));	
+	);
+
+
+//______________________________________________________________________________________________________
+//Add column filter pass
+exp_tmp="";
+
+exp_tmp=":Name(\!""||colName_r[1]||"\!")";	
+For (i=2,i<=NRow(dt_spec),i++,
+	 exp_tmp=exp_tmp || "*" ||":Name(\!""||colName_r[i]||"\!")";
+	);
+
+exp_tmp1="If(:Filter_MR1==0,Empty(),"||exp_tmp||")";
+col_fpassA=dt_data<<NewColumn("FilterPass_MR1",Formula(Eval(Parse(exp_tmp1))));	 
+
+//Add column rawpass
+exp_tmp2=exp_tmp;
+col_rpassA=dt_data<<NewColumn("RawPass_MR1",Formula(Eval(Parse(exp_tmp2))));
+
+//Move rawpass column and filterpass column after "Filter".
+dt_data<<Clear Column Selection;
+col_fpassA<<Set Selected(1);
+col_rpassA<<Set Selected(1);
+dt_data<<Move Selected Columns(After("Filter_MR1"));	
+dt_data<<Clear Column Selection;	
+
+
+//________________________________________________________________________________________________________
+// Add filter and spec as string at the end of the columns.
+
+exp_tmp="";
+For (i=1,i<=NRow(dt_filter),i++,
+	 tmp_column=Column(dt_filter,"New_Name")[i];
+	 tmp_low=Column(dt_filter,"Filter_Low")[i];
+	 tmp_high=Column(dt_filter,"Filter_High")[i];
+	 
+	 if (i==NRow(dt_filter),
+		exp_tmp=exp_tmp||"("||char(Eval(tmp_low))||"<="||tmp_column||"<="||char(Eval(tmp_high))||")",
+		//else
+		exp_tmp=exp_tmp||"("||char(Eval(tmp_low))||"<="||tmp_column||"<"||char(Eval(tmp_high))||") & ";
+		)
+	);
+	
+dt_data<<NewColumn("Filter_information_MR1",Character, Nominal, Formula(Eval(exp_tmp)));
+
+exp_tmp="";
+For (i=1,i<=NRow(dt_spec),i++,
+	 tmp_column=Column(dt_spec,"New_Name")[i];
+	 tmp_low=Column(dt_spec,"Spec_Low")[i];
+	 tmp_high=Column(dt_spec,"Spec_High")[i];
+	 
+	 if (  !Is Missing(tmp_low)&!Is Missing(tmp_high),
+		exp_tmp=exp_tmp||" & ("||char(Eval(tmp_low))||"<="||tmp_column||"<="||char(Eval(tmp_high))||")",
+		//else
+		If (Is Missing(tmp_low),
+			exp_tmp=exp_tmp||" & ("||tmp_column||"<="||char(Eval(tmp_high))||")",
+			//else
+			exp_tmp=exp_tmp||" & ("||char(Eval(tmp_low))||"<="||tmp_column||")";
+			)
+		);
+	);
+	
+exp_tmp=Munger(exp_tmp,4,-1);
+dt_data<<NewColumn("Spec_information_MR1",Character, Nominal, Formula(Eval(exp_tmp)));	
+
+
+//________________________________________________________________________________________________________
+// Summary
+
+dt_Clib<<Select Where(:Included_in_Summary==1 );
+dt_Slib=dt_Clib<<Subset(columns(:New_Name,:Included_in_Summary),Selected Rows, Output Table Name("iSum"));
+dt_Clib<<Clear Row Selection;
+
+
+col_isum=Column(dt_Slib,"New_Name");
+
+Current Data Table(dt_data);
+dt_data<<Select Where(:Filter_MR1==1);
+dt_data1=dt_data<<Subset(Selected Rows, Output Table Name("FCA_filtered"));
+dt_data<<Clear Row Selection;
+
+//Add Median (column name)
+
+exp_tmp="";
+For (i=1,i<=Nrows(dt_Slib),i++,
+	 exp_tmp=exp_tmp||"Median( :Name(\!""||col_isum[i]||"\!")),";	
+	);
+
+//Add Mean (column name)
+
+For (i=1,i<=Nrows(dt_Slib),i++,
+	 exp_tmp=exp_tmp||"Mean( :Name(\!""||col_isum[i]||"\!")),";	
+	);
+
+//Add Std Dev(column name)
+
+For (i=1,i<=Nrows(dt_Slib),i++,
+	 exp_tmp=exp_tmp||"Std Dev( :Name(\!""||col_isum[i]||"\!")),";	
+	);
+
+//Remove the last comma ","	in exp_tmp
+exp_tmp=Munger(exp_tmp,1,length(exp_tmp)-1);
+
+exp_tmp="dt_sum_a=dt_data1<<Summary(Group("||char_sum||"),"||exp_tmp||", Output Table Name(\!"Summary 1 tmp\!"))";	
+
+//Execute "exp_tmp", get summary table refered by dt_sum
+Eval(Parse(exp_tmp));
+dt_sum_a<<delete column("N Rows");
+
+exp_tmp="";
+//Add Sum(column name)
+//------------|O.O| hard code column names-------------------
+exp_tmp=exp_tmp||"Sum( :Filter_MR1), Sum( :FilterPass_MR1), Sum( :RawPass_MR1), ";
+
+For (i=1,i<=Nitems(colName_f),i++,
+	 exp_tmp=exp_tmp||"Sum( :Name(\!""||colName_f[i]||"\!")),";	
+	);
+
+For (i=1,i<=Nitems(colName_f),i++,
+	 exp_tmp=exp_tmp||"Sum( :Name(\!""||colName_r[i]||"\!")),";	
+	);
+	
+For (i=1,i<=Nitems(colName_f),i++,
+	 exp_tmp=exp_tmp||"Sum( :Name(\!""||colName_fd[i]||"\!")),";	
+	);
+	 
+For (i=1,i<=Nitems(colName_f),i++,
+	 exp_tmp=exp_tmp||"Sum( :Name(\!""||colName_rd[i]||"\!")),";	
+	);
+
+//Remove the last comma ","	in exp_tmp
+exp_tmp=Munger(exp_tmp,1,length(exp_tmp)-1);
+
+//Final step.
+exp_tmp="dt_yield=dt_data<<Summary(Group("||char_sum||"),"||exp_tmp||", Output Table Name(\!"Yield\!"))";	
+
+//Execute "exp_tmp", get summary table refered by dt_sum
+Eval(Parse(exp_tmp));
+
+exp_tmp="";
+char_sum_list=Words(char_sum, ", ");
+For (i=1,i<=length(char_sum_list),i++,
+	exp_tmp=exp_tmp||char_sum_list[i]||"="||char_sum_list[i]||",";
+	);
+//Remove the last comma ","	in exp_tmp
+exp_tmp=Munger(exp_tmp,1,length(exp_tmp)-1);
+
+exp_tmp="dt_sum=dt_sum_a << Join(With( dt_yield ),By Matching Columns("||exp_tmp||"),Merge Same Name Columns, Drop multiples( 0, 0 ),
+		Name( \!"Include non-matches\!" )(0, 0),Preserve main table order( 1 ), Output Table Name(\!"Summary_MR1\!"));";
+
+
+Eval(Parse(exp_tmp));
+
+
+close(dt_yield,no save);
+close(dt_sum_a,no save);
+close(dt_data1,no save);
+
+
+
+//_______________________________________________________________________________________________________________________
+//Calculate iloss, dloss
+
+col_yield={};
+exp_tmp="";
+
+//Independent loss in the filtered group
+For (i=1,i<=Nitems(colName_f),i++,
+	 tmp_column="ifilterLoss_"||Munger(colName_f[i],length("FilterPassIn_")+1,-1);
+	 exp_tmp="(1-:Name(\!"Sum("||colName_f[i]||")\!")/:Name(\!"Sum(Filter_MR1)\!"))*100";
+	 col_yield[i]=dt_sum<<NewColumn(tmp_column,Formula(Eval(Parse(exp_tmp))));		
+	);
+	
+//Dependent loss in the filtered group
+For (i=1,i<=Nitems(colName_f),i++,
+	 tmp_column="dfilterLoss_"||Munger(colName_fd[i],length("FilterLossDe_")+1,-1);
+	 exp_tmp="(:Name(\!"Sum("||colName_fd[i]||")\!")/:Name(\!"Sum(Filter_MR1)\!"))*100";
+	 col_yield[i+Nitems(colName_f)]=dt_sum<<NewColumn(tmp_column,Formula(Eval(Parse(exp_tmp))));		
+	);
+	
+//Independent loss in all parts, raw loss
+For (i=1,i<=Nitems(colName_f),i++,
+	 tmp_column="irawLoss_"||Munger(colName_f[i],length("FilterPassIn_")+1,-1);
+	 exp_tmp="(1-:Name(\!"Sum("||colName_r[i]||")\!")/:Name(\!"N Rows\!"))*100";
+	 col_yield[i+Nitems(colName_f)*2]=dt_sum<<NewColumn(tmp_column,Formula(Eval(Parse(exp_tmp))));		
+	);
+	
+//Dependent loss in all parts, raw loss
+For (i=1,i<=Nitems(colName_f),i++,
+	 tmp_column="drawLoss_"||Munger(colName_fd[i],length("FilterLossDe_")+1,-1);
+	 exp_tmp="(:Name(\!"Sum("||colName_rd[i]||")\!")/:Name(\!"N Rows\!"))*100";
+	 col_yield[i+Nitems(colName_f)*3]=dt_sum<<NewColumn(tmp_column,Formula(Eval(Parse(exp_tmp))));		
+	);
+
+//Add yield calculation
+dt_sum<<Clear Row Selection;
+dt_sum<<NewColumn("Filter_Pass_MR1",Formula((:Name("Sum(Filter_MR1)") / :N Rows) * 100));
+dt_sum<<NewColumn("Filtered_Yield_MR1",Formula((:Name("Sum(FilterPass_MR1)") / :Name("Sum(Filter_MR1)")) * 100));
+dt_sum<<NewColumn("RawYield_MR1",Formula((:Name("Sum(RawPass_MR1)")  / :N Rows) * 100));
+
+dt_sum<<Move Selected Columns({"N Rows","Filter_Pass_MR1","Filtered_Yield_MR1","RawYield_MR1"},After("WAFERNUM"));	
+
+Column(dt_sum, "N Rows")<lock(0);
+:N Rows << Set Name("NRows_MR1");
+
+
+close(dt_rename,no save);
+close(dt_filter,no save);
+close(dt_spec,no save);
+close(dt_Slib, no save);
+close(dt_Clib, no save);
+
+
+//_____________________________________________________________________________________________________________________________
+//_____________________________________________________________________________________________________________________________
+//Upper reader
+
+SpecFile << Select Where(:Reader=="U");
+dt_Clib  = SpecFile << Subset(Output Table( "RU_Spec" ), Selected Rows( 1 ), selected columns( 0 ));
+SpecFile << Clear Row Selection;
+
+// Add missing columns to data table
+
+dt_Clib<<Select Where(:Included_in_Summary>=0 );
+dt_rename=dt_Clib<<Subset(columns( :Included_in_Summary,:New_Name, :Formula, :Original_Name ),Selected Rows, Output Table Name("iRename"));
+dt_Clib<<Clear Row Selection;
+col_Nname=Column(dt_Rename,"New_Name");
+col_Oname=Column(dt_Rename,"Original_Name");
+
+col_key={};
+exp_tmp="";
+kk=NRow(dt_rename);
+
+
+for(i=1,i<=kk,i++,
+	if ( col_Nname[i]==col_Oname[i], 
+		 col_key[i]=Parse(Eval("Column(dt_data, \!""||col_Oname[i]||"\!")")),
+	//else			
+		if (Column(dt_rename,"Formula")[i]==0,
+			temp=expr(Parse(Eval(":Name(\!""||col_Oname[i]||"\!")")));
+			col_key[i]=dt_data << NewColumn(col_Nname[i],Formula(eval(temp))),
+			//else if
+			Column(dt_rename,"Formula")[i]==1 & !Is Missing(col_Oname[i]),
+			temp=expr(Parse(Eval(col_Oname[i])));
+			col_key[i]=dt_data << NewColumn(col_Nname[i],Formula(eval(temp)), Evalformula),
+			//else if
+			Column(dt_rename,"Formula")[i]==1 & Is Missing(col_Oname[i]),
+			col_key[i]=dt_data << NewColumn(col_Nname[i],Numeric, Continuous);	
+			);
+		);
+	exp_tmp = exp_tmp||Eval("\!""||col_Nname[i]||"\!", ");		
+	);
+
+
+// Define filter and spec
+
+dt_Clib<<Select Where(:Filter==1 );
+dt_filter=dt_Clib<<Subset(columns( :New_Name,:Filter, :Filter_Low, :Filter_High ),Selected Rows, Output Table Name("iFilter"));
+dt_Clib<<Clear Row Selection;
+
+dt_Clib<<Select Where(!Is Missing(:Spec_Order) );
+dt_spec=dt_Clib<<Subset(columns(:New_Name,:Spec_Order,:Spec_Low,:Spec_High),Selected Rows, Output Table Name("iSpec"));
+dt_spec<<Sort(By(:Spec_Order), Order(Ascending),Replace Table);
+Column(dt_spec,"Spec_Order")<<Set Formula(Row(),EvalFormula);
+dt_Clib<<Clear Row Selection;
+
+// For MR2 low and high separate
+
+dt_spec<<Current Data Set();
+row_MRR=dt_spec<<Get Rows Where(:New_Name=="RCold_Res_MR2");
+dt_spec<<Add Rows(1,row_MRR[1]);
+:New_Name[row_MRR[1]+1]="RCold_Res_MR2"; 
+:Spec_Low[row_MRR[1]+1]=Empty();
+:Spec_High[row_MRR[1]+1]=:Spec_High[row_MRR[1]];
+:Spec_High[row_MRR[1]]=Empty();
+
+col_1=dt_spec<<New Column("Spec_Name",Character);
+:Spec_Name[row_MRR[1]]="RCold_Res_MR2_Low";
+:Spec_Name[row_MRR[1]+1]="RCold_Res_MR2_High";
+//:Spec_Name[row_MRR[1]+2]="MR1_Wide";
+For each row( If(! Contains( Concat( :New_Name ), "RCold_Res_MR2" ), Spec_Name=:New_Name(Row);););
+
+//_____________________________________________________________________________________________________________________________
+//Add column "Filter Pass". Pass=1, Fail=0.
+
+colName_f={};
+col_fpass={};
+colName_r={};
+col_rpass={};
+colName_fd={};
+col_fpassDe={};
+colName_rd={};
+col_rpassDe={};
+
+exp_tmp="";
+For (i=1,i<=NRow(dt_filter),i++,
+	 tmp_column=Column(dt_filter,"New_Name")[i];
+	 tmp_low=Column(dt_filter,"Filter_Low")[i];
+	 tmp_high=Column(dt_filter,"Filter_High")[i];
+	 
+	 if (i==NRow(dt_filter),
+		exp_tmp=exp_tmp||"("||char(Eval(tmp_low))||"<="||":Name(\!""||tmp_column||"\!")"||"<="||char(Eval(tmp_high))||")",
+		//else
+		exp_tmp=exp_tmp||"("||char(Eval(tmp_low))||"<="||":Name(\!""||tmp_column||"\!")"||"<="||char(Eval(tmp_high))||") &";
+		)
+	);
+
+
+exp_tmp="If ("||exp_tmp||",1,0)"; 
+
+Current Data Table(dt_data);
+col_filter=dt_data<<NewColumn("Filter_MR2",Formula(Eval(Parse(exp_tmp))));
+
+//_____________________________________________________________________________________________________________________________
+//Add independent pass and fail columns. Pass=1, Fail=0.
+//1. Independent pass/fail within filter pass group.
+
+exp_tmp="";
+For (i=1,i<=NRow(dt_spec),i++,
+	 tmp_column=Column(dt_spec,"New_Name")[i];
+	 tmp_column2=Column(dt_spec,"Spec_Name")[i];
+	 colName_f[i]="FilterPassIn_"||Munger(tmp_column2, 1, "_BQST","");
+	 tmp_low=Column(dt_spec,"Spec_Low")[i];
+	 tmp_high=Column(dt_spec,"Spec_High")[i];
+	 
+	 if (  !Is Missing(tmp_low)&!Is Missing(tmp_high),
+		exp_tmp="If (:Filter_MR2==0,Empty(),If(("||char(Eval(tmp_low))||"<="||":Name(\!""||tmp_column||"\!")"||"<="||char(Eval(tmp_high))||"),1,0))",
+		//else
+		If (Is Missing(tmp_low),
+			exp_tmp="If (:Filter_MR2==0,Empty(),If(("||":Name(\!""||tmp_column||"\!")"||"<="||char(Eval(tmp_high))||"),1,0))",
+			//else
+			exp_tmp="If (:Filter_MR2==0,Empty(),If(("||char(Eval(tmp_low))||"<="||":Name(\!""||tmp_column||"\!")"||"),1,0))";
+			)
+		);
+		
+	 col_fpass[i]=dt_data<<NewColumn(colName_f[i],Formula(Eval(Parse(exp_tmp))));	
+	);
+
+
+//_____________________________________________________________________________________________________________________________
+//2. Independent pass/fail in all parts.
+
+exp_tmp="";
+For (i=1,i<=NRow(dt_spec),i++,
+	 tmp_column=Column(dt_spec,"New_Name")[i];
+	 tmp_column2=Column(dt_spec,"Spec_Name")[i];
+	 colName_r[i]="RawPassIn_"||Munger(tmp_column2, 1, "_BQST","");
+	 tmp_low=Column(dt_spec,"Spec_Low")[i];
+	 tmp_high=Column(dt_spec,"Spec_High")[i];
+	 
+	 if (  !Is Missing(tmp_low)&!Is Missing(tmp_high),
+		exp_tmp="If(("||char(Eval(tmp_low))||"<="||":Name(\!""||tmp_column||"\!")"||"<="||char(Eval(tmp_high))||"),1,0)",
+		//else
+		If (Is Missing(tmp_low),
+			exp_tmp="If(("||":Name(\!""||tmp_column||"\!")"||"<="||char(Eval(tmp_high))||"),1,0)",
+			//else
+			exp_tmp="If(("||char(Eval(tmp_low))||"<="||":Name(\!""||tmp_column||"\!")"||"),1,0)";
+			)
+		);
+	 col_rpass[i]=dt_data<<NewColumn(colName_r[i],Formula(Eval(Parse(exp_tmp))));	
+	);
+
+
+
+//__________________________________________________________________________________________________________________
+//Add dependent pass and fail columns. Pass=1, Fail=0.
+//1. dependent pass/fail within filter pass group.
+
+exp_tmp="";
+For (i=1,i<=NRow(dt_spec),i++,
+	 tmp_column=Column(dt_spec,"New_Name")[i];
+	 tmp_column2=Column(dt_spec,"Spec_Name")[i];
+	 colName_fd[i]="FilterLossDe_"||Munger(tmp_column2, 1, "_BQST","");
+	 
+	 if (i==1,
+		 exp_tmp="If (:Filter_MR2==0,Empty(),"||"!:Name(\!""||colName_f[1]||"\!");"||")",
+		 
+		 //else
+		 exp_tmp=":Name(\!""||colName_f[1]||"\!")";
+		 For(j=2,j<=i-1,j++,
+			  exp_tmp=exp_tmp || "*" ||":Name(\!""||colName_f[j]||"\!")";
+			 );
+		 exp_tmp="If (:Filter_MR2==0 |"||exp_tmp||"==0,Empty(),"||"!:Name(\!""||colName_f[i]||"\!");"||")";	 
+		);	 
+			
+	col_fpassDe[i]=dt_data<<NewColumn(colName_fd[i],Formula(Eval(Parse(exp_tmp))));	
+	);
+	
+//__________________________________________________________________________________________________________________
+//2. Dependent pass/fail in all parts.
+
+exp_tmp="";
+For (i=1,i<=NRow(dt_spec),i++,
+	 tmp_column=Column(dt_spec,"New_Name")[i];
+	 tmp_column2=Column(dt_spec,"Spec_Name")[i];
+	 colName_rd[i]="RawLossDe_"||Munger(tmp_column2, 1, "_BQST","");
+	 
+	 if (i==1,
+		 exp_tmp="!:Name(\!""||colName_r[1]||"\!");",
+		 
+		 //else
+		 exp_tmp=":Name(\!""||colName_r[1]||"\!")";
+		 For(j=2,j<=i-1,j++,
+			  exp_tmp=exp_tmp || "*" ||":Name(\!""||colName_r[j]||"\!")";
+			 );
+		 exp_tmp="If ("||exp_tmp||"==0,Empty(),"||"!:Name(\!""||colName_r[i]||"\!");"||")";	 
+		);	 
+	
+	col_rpassDe[i]=dt_data<<NewColumn(colName_rd[i],Formula(Eval(Parse(exp_tmp))));	
+	);
+
+
+//______________________________________________________________________________________________________
+//Add column filter pass
+exp_tmp="";
+
+exp_tmp=":Name(\!""||colName_r[1]||"\!")";	
+For (i=2,i<=NRow(dt_spec),i++,
+	 exp_tmp=exp_tmp || "*" ||":Name(\!""||colName_r[i]||"\!")";
+	);
+
+exp_tmp1="If(:Filter_MR2==0,Empty(),"||exp_tmp||")";
+col_fpassA=dt_data<<NewColumn("FilterPass_MR2",Formula(Eval(Parse(exp_tmp1))));	 
+
+//Add column rawpass
+exp_tmp2=exp_tmp;
+col_rpassA=dt_data<<NewColumn("RawPass_MR2",Formula(Eval(Parse(exp_tmp2))));
+
+//Move rawpass column and filterpass column after "Filter".
+dt_data<<Clear Column Selection;
+col_fpassA<<Set Selected(1);
+col_rpassA<<Set Selected(1);
+dt_data<<Move Selected Columns(After("Filter_MR2"));	
+dt_data<<Clear Column Selection;	
+
+
+//________________________________________________________________________________________________________
+// Add filter and spec as string at the end of the columns.
+
+exp_tmp="";
+For (i=1,i<=NRow(dt_filter),i++,
+	 tmp_column=Column(dt_filter,"New_Name")[i];
+	 tmp_low=Column(dt_filter,"Filter_Low")[i];
+	 tmp_high=Column(dt_filter,"Filter_High")[i];
+	 
+	 if (i==NRow(dt_filter),
+		exp_tmp=exp_tmp||"("||char(Eval(tmp_low))||"<="||tmp_column||"<="||char(Eval(tmp_high))||")",
+		//else
+		exp_tmp=exp_tmp||"("||char(Eval(tmp_low))||"<="||tmp_column||"<"||char(Eval(tmp_high))||") & ";
+		)
+	);
+	
+dt_data<<NewColumn("Filter_information_MR2",Character, Nominal, Formula(Eval(exp_tmp)));
+
+exp_tmp="";
+For (i=1,i<=NRow(dt_spec),i++,
+	 tmp_column=Column(dt_spec,"New_Name")[i];
+	 tmp_low=Column(dt_spec,"Spec_Low")[i];
+	 tmp_high=Column(dt_spec,"Spec_High")[i];
+	 
+	 if (  !Is Missing(tmp_low)&!Is Missing(tmp_high),
+		exp_tmp=exp_tmp||" & ("||char(Eval(tmp_low))||"<="||tmp_column||"<="||char(Eval(tmp_high))||")",
+		//else
+		If (Is Missing(tmp_low),
+			exp_tmp=exp_tmp||" & ("||tmp_column||"<="||char(Eval(tmp_high))||")",
+			//else
+			exp_tmp=exp_tmp||" & ("||char(Eval(tmp_low))||"<="||tmp_column||")";
+			)
+		);
+	);
+	
+exp_tmp=Munger(exp_tmp,4,-1);
+dt_data<<NewColumn("Spec_information_MR2",Character, Nominal, Formula(Eval(exp_tmp)));	
+
+
+//________________________________________________________________________________________________________
+// Summary
+
+dt_Clib<<Select Where(:Included_in_Summary==1 );
+dt_Slib=dt_Clib<<Subset(columns(:New_Name,:Included_in_Summary),Selected Rows, Output Table Name("iSum"));
+dt_Clib<<Clear Row Selection;
+
+
+col_isum=Column(dt_Slib,"New_Name");
+
+Current Data Table(dt_data);
+dt_data<<Select Where(:Filter_MR2==1);
+dt_data1=dt_data<<Subset(Selected Rows, Output Table Name("FCA_filtered"));
+dt_data<<Clear Row Selection;
+
+//Add Median (column name)
+
+exp_tmp="";
+For (i=1,i<=Nrows(dt_Slib),i++,
+	 exp_tmp=exp_tmp||"Median( :Name(\!""||col_isum[i]||"\!")),";	
+	);
+
+//Add Mean (column name)
+
+For (i=1,i<=Nrows(dt_Slib),i++,
+	 exp_tmp=exp_tmp||"Mean( :Name(\!""||col_isum[i]||"\!")),";	
+	);
+
+//Add Std Dev(column name)
+
+For (i=1,i<=Nrows(dt_Slib),i++,
+	 exp_tmp=exp_tmp||"Std Dev( :Name(\!""||col_isum[i]||"\!")),";	
+	);
+
+//Remove the last comma ","	in exp_tmp
+exp_tmp=Munger(exp_tmp,1,length(exp_tmp)-1);
+
+exp_tmp="dt_sum_a=dt_data1<<Summary(Group("||char_sum||"),"||exp_tmp||", Output Table Name(\!"Summary 1 tmp\!"))";	
+
+//Execute "exp_tmp", get summary table refered by dt_sum
+Eval(Parse(exp_tmp));
+dt_sum_a<<delete column("N Rows");
+
+exp_tmp="";
+//Add Sum(column name)
+//------------|O.O| hard code column names-------------------
+exp_tmp=exp_tmp||"Sum( :Filter_MR2), Sum( :FilterPass_MR2), Sum( :RawPass_MR2), ";
+
+For (i=1,i<=Nitems(colName_f),i++,
+	 exp_tmp=exp_tmp||"Sum( :Name(\!""||colName_f[i]||"\!")),";	
+	);
+
+For (i=1,i<=Nitems(colName_f),i++,
+	 exp_tmp=exp_tmp||"Sum( :Name(\!""||colName_r[i]||"\!")),";	
+	);
+	
+For (i=1,i<=Nitems(colName_f),i++,
+	 exp_tmp=exp_tmp||"Sum( :Name(\!""||colName_fd[i]||"\!")),";	
+	);
+	 
+For (i=1,i<=Nitems(colName_f),i++,
+	 exp_tmp=exp_tmp||"Sum( :Name(\!""||colName_rd[i]||"\!")),";	
+	);
+
+//Remove the last comma ","	in exp_tmp
+exp_tmp=Munger(exp_tmp,1,length(exp_tmp)-1);
+
+//Final step.
+exp_tmp="dt_yield=dt_data<<Summary(Group("||char_sum||"),"||exp_tmp||", Output Table Name(\!"Yield\!"))";	
+
+//Execute "exp_tmp", get summary table refered by dt_sum
+Eval(Parse(exp_tmp));
+
+exp_tmp="";
+char_sum_list=Words(char_sum, ", ");
+For (i=1,i<=length(char_sum_list),i++,
+	exp_tmp=exp_tmp||char_sum_list[i]||"="||char_sum_list[i]||",";
+	);
+//Remove the last comma ","	in exp_tmp
+exp_tmp=Munger(exp_tmp,1,length(exp_tmp)-1);
+
+exp_tmp="dt_sum_MR2=dt_sum_a << Join(With( dt_yield ),By Matching Columns("||exp_tmp||"),Merge Same Name Columns, Drop multiples( 0, 0 ),
+		Name( \!"Include non-matches\!" )(0, 0),Preserve main table order( 1 ), Output Table Name(\!"Summary_MR2\!"));";
+
+
+Eval(Parse(exp_tmp));
+
+
+close(dt_yield,no save);
+close(dt_sum_a,no save);
+close(dt_data1,no save);
+
+
+
+//_______________________________________________________________________________________________________________________
+//Calculate iloss, dloss
+
+col_yield={};
+exp_tmp="";
+
+//Independent loss in the filtered group
+For (i=1,i<=Nitems(colName_f),i++,
+	 tmp_column="ifilterLoss_"||Munger(colName_f[i],length("FilterPassIn_")+1,-1);
+	 exp_tmp="(1-:Name(\!"Sum("||colName_f[i]||")\!")/:Name(\!"Sum(Filter_MR2)\!"))*100";
+	 col_yield[i]=dt_sum_MR2<<NewColumn(tmp_column,Formula(Eval(Parse(exp_tmp))));		
+	);
+	
+//Dependent loss in the filtered group
+For (i=1,i<=Nitems(colName_f),i++,
+	 tmp_column="dfilterLoss_"||Munger(colName_fd[i],length("FilterLossDe_")+1,-1);
+	 exp_tmp="(:Name(\!"Sum("||colName_fd[i]||")\!")/:Name(\!"Sum(Filter_MR2)\!"))*100";
+	 col_yield[i+Nitems(colName_f)]=dt_sum_MR2<<NewColumn(tmp_column,Formula(Eval(Parse(exp_tmp))));		
+	);
+	
+//Independent loss in all parts, raw loss
+For (i=1,i<=Nitems(colName_f),i++,
+	 tmp_column="irawLoss_"||Munger(colName_f[i],length("FilterPassIn_")+1,-1);
+	 exp_tmp="(1-:Name(\!"Sum("||colName_r[i]||")\!")/:Name(\!"N Rows\!"))*100";
+	 col_yield[i+Nitems(colName_f)*2]=dt_sum_MR2<<NewColumn(tmp_column,Formula(Eval(Parse(exp_tmp))));		
+	);
+	
+//Dependent loss in all parts, raw loss
+For (i=1,i<=Nitems(colName_f),i++,
+	 tmp_column="drawLoss_"||Munger(colName_fd[i],length("FilterLossDe_")+1,-1);
+	 exp_tmp="(:Name(\!"Sum("||colName_rd[i]||")\!")/:Name(\!"N Rows\!"))*100";
+	 col_yield[i+Nitems(colName_f)*3]=dt_sum_MR2<<NewColumn(tmp_column,Formula(Eval(Parse(exp_tmp))));		
+	);
+
+//Add yield calculation
+dt_sum_MR2<<Clear Row Selection;
+dt_sum_MR2<<NewColumn("Filter_Pass_MR2",Formula((:Name("Sum(Filter_MR2)") / :N Rows) * 100));
+dt_sum_MR2<<NewColumn("Filtered_Yield_MR2",Formula((:Name("Sum(FilterPass_MR2)") / :Name("Sum(Filter_MR2)")) * 100));
+dt_sum_MR2<<NewColumn("RawYield_MR2",Formula((:Name("Sum(RawPass_MR2)")  / :N Rows) * 100));
+
+dt_sum_MR2<<Move Selected Columns({"N Rows","Filter_Pass_MR2","Filtered_Yield_MR2","RawYield_MR2"},After("WAFERNUM"));	
+
+Column(dt_sum_MR2, "N Rows")<lock(0);
+:N Rows << Set Name("NRows_MR2");
+
+
+close(dt_rename,no save);
+close(dt_filter,no save);
+close(dt_spec,no save);
+close(dt_Slib, no save);
+close(dt_Clib, no save);
+
+//_____________________________________________________________________________________________________________________________
+// Add OR and AND on filter pass data
+
+Current Data Table (dt_data);
+
+dt_data << New Column("Filter_MR1_MR2", formula(If(:Filter_MR1 == 0 & :Filter_MR2 == 0, 0, :Filter_MR1 | :Filter_MR2)), eval formula );
+dt_data << New Column("OR_Raw_MR1_MR2", formula(If(:Filter_MR1_MR2 > 0, :RawPass_MR1 | :RawPass_MR2)), eval formula );
+dt_data << New Column("OR_Filter_MR1_MR2", formula(If(:Filter_MR1_MR2 > 0, :FilterPass_MR1 | :FilterPass_MR2)), eval formula );
+dt_data << New Column("AND_Raw_MR1_MR2", formula(:RawPass_MR1 & :RawPass_MR2), eval formula );
+dt_data << New Column("AND_Filter_MR1_MR2", formula(:FilterPass_MR1 & :FilterPass_MR2), eval formula );
+
+
+exp_tmp = "";
+exp_tmp =   exp_tmp||"Sum( \!"Filter_MR1_MR2\!"), Sum( \!"OR_Raw_MR1_MR2\!"), Sum( \!"OR_Filter_MR1_MR2\!"),
+						Sum( \!"AND_Raw_MR1_MR2\!"), Sum( \!"AND_Filter_MR1_MR2\!")";
+exp_tmp="dtSumOR=dt_data<<Summary(Group("||char_sum||"),"||exp_tmp||", Output Table Name(\!"OR_AND_yield\!"))";	
+Eval(Parse(exp_tmp));
+
+dtsumOR << New Column("Filter_Pct", Formula((:Name("Sum(Filter_MR1_MR2)") / :N Rows) * 100), eval formula);
+dtsumOR << New Column("OR_Raw_Yield", Formula((:Name("Sum(OR_Raw_MR1_MR2)") / :N Rows) * 100), eval formula);
+dtSumOR << New Column ( "OR_Filter_yield", formula((:Name("Sum(OR_Filter_MR1_MR2)") / :Name("Sum(Filter_MR1_MR2)")) * 100), eval formula );
+dtsumOR << New Column("AND_Raw_Yield",Formula((:Name("Sum(AND_Raw_MR1_MR2)")  / :N Rows) * 100), eval formula);
+dtSumOR << New Column ( "AND_Filter_Yield", formula((:Name("Sum(AND_Filter_MR1_MR2)") / :Name("Sum(Filter_MR1_MR2)")) * 100), eval formula );
+//dtSumOR << delete column("N Rows");
+
+//_____________________________________________________________________________________________________________________________
+// Join MR1 and MR2 summary tables and the OR yield table
+// Need to match more columns according to char_sum at th beginning of the script
+
+
+exp_tmp="";
+char_sum_list=Words(char_sum, ", ");
+For (i=1,i<=length(char_sum_list),i++,
+	exp_tmp=exp_tmp||char_sum_list[i]||"="||char_sum_list[i]||",";
+	);
+
+//Current Data Table(dt_sum);
+
+exp_tmp="dt_sum_combined=dt_sum << Join(With( dt_sum_MR2 ),
+			By Matching Columns("||exp_tmp||"), Merge Same Name Columns, Drop multiples( 0, 0 ), 
+			Name( \!"Include non-matches\!" )(1, 1),, Output Table Name(\!"SumJoined\!"));";
+Eval(Parse(exp_tmp));
+
+dt_sum_combined<<Move Selected Columns({"NRows_MR2","Filter_Pass_MR2","Filtered_Yield_MR2","RawYield_MR2"},After("RawYield_MR1"));
+
+//Current Data Table (dtSumOR); 
+
+exp_tmp="";
+char_sum_list=Words(char_sum, ", ");
+For (i=1,i<=length(char_sum_list),i++,
+	exp_tmp=exp_tmp||char_sum_list[i]||"="||char_sum_list[i]||",";
+	);
+
+exp_tmp="SumCombined = dtSumOR << Join(With( dt_sum_combined ),
+			By Matching Columns("||exp_tmp||"), Merge Same Name Columns, Drop multiples( 0, 0 ), 
+			Name( \!"Include non-matches\!" )(1, 1), Output Table Name(\!"SumJoined_AND_OR\!"));";
+Eval(Parse(exp_tmp));
+
+close (dt_sum_combined, no save);
+	
+
+
+//_____________________________________________________________________________________________________________________________
+// Create RU/RL stackec sumamry from MR1 & MR2 summaries
+// First separate MR1_MR2 shunt from MR1 summary, then delete those columns from MR1 summary
+
+
+
+Current Data Table(dt_sum);
+
+col_list_MR1 = dt_sum << get column names(string);
+newlist_MR1 = {};
+
+for (i=1 , i<=nitems(col_list_MR1), i++,
+		Insert Into (newlist_MR1,  Substitute(col_list_MR1[i], "_MR1", ""));
+		column(dt_sum, i) << set name (eval(newlist_MR1[i]));
+		);
+
+dt_sum << new Column("Reader", Character, Nominal, formula("Lower") );
+dt_sum:Reader << Delete formula;
+
+col_list_MR2 = dt_sum_MR2 << get column names(string);
+newlist_MR2 = {};
+		
+for (i=1 , i<=nitems(col_list_MR2), i++,
+		Insert Into (newlist_MR2,  Substitute(col_list_MR2[i], "_MR2", ""));
+		column(dt_sum_MR2, i) << set name (eval(newlist_MR2[i]));
+		);
+
+dt_sum_MR2 << new Column("Reader", Character, Nominal, formula("Upper") );
+dt_sum_MR2:Reader << Delete formula;
+
+
+dtConcat = dt_sum << Concatenate(dt_sum_MR2, Output Table name("Summary_concat") );
+
+// Update MR1-MR2 shint related column names
+
+col_list = dtConcat << get column names(string);
+newlist = {};
+
+for (i=1 , i<=nitems(col_list), i++,
+		Insert Into (newlist,  Substitute(col_list[i], "RShunt_MR2", "RShunt_MR1_MR2"));
+		column(dtConcat, i) << set name (eval(newlist[i]));
+		);
+
+
+exp_tmp="";
+char_sum_list=Words(char_sum, ", ");
+For (i=1,i<=length(char_sum_list),i++,
+	exp_tmp=exp_tmp||char_sum_list[i]||",";
+	);
+
+exp_tmp="dtConcat << Sort(By("||exp_tmp||", :Reader), Replace table (1));";
+Eval(Parse(exp_tmp));
+
+dtConcat << Move Selected Columns({"Reader"}, After(:SH)); // Hard coded
+
+
+// Save files
+
+dt_data << save(WorkFolderPath||"Raw_Data.jmp"); // Raw data
+dt_sum << save(WorkFolderPath||"Summary_MR1.jmp");
+dt_sum_MR2 << save(WorkFolderPath||"Summary_MR2.jmp");
+SumCombined << save(WorkFolderPath||"SumJoined_AND_OR.jmp");
+dtConcat << save(WorkFolderPath||"Summary_concat.jmp");

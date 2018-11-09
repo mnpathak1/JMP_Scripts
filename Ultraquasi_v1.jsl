@@ -1,0 +1,269 @@
+
+// --------------------------------------------
+//
+// Script to collect RELG SH data in TDMR wafers
+// 
+//
+// TW1 is WIDE, TW2 is MID, TW3 is NARROW following wafer level convension
+//
+// JMP 12
+// TDMR GEN3 raw quasi data 
+// Version 1.0
+// Author: Manjit P./Howie Z.
+// Date  : 04/14/2017
+// 
+// Revision History
+// No.	When		 	Who			What
+// 1	10/11/2018		Manjit P.	Added FB UQ OP 510900 after COC	
+//
+//
+// 510330: After COC in RO
+// 500030: Before COC in RO
+// 510900: After COC in FB
+//
+//---------------------------------------------
+
+Clear Log();
+clear Globals();
+
+// Log in info
+Include("C:\Design\Scripts\JMP Scripts\GO-DataAnalysis\Manjit\JMP\login.jsl");   
+
+
+
+// Input wafer numbers to eb provided by user:
+files = Pick File("SELECT SINGLE COLUMN WAFER JMP FILE","",{"jmp Files|jmp;","All Files|*"},1,0,"");
+dt0=Open(files);
+col = Column(1);
+col << Data Type( Character );
+wafers = col << Get values;
+
+wf =  Concat Items(wafers, ",") ;
+
+
+//wf="284288,285306,285150";
+
+
+// Wafer quad, TW info
+// Note: TW1 is wide, TW2 is mid, TW3 is narrow
+dt_wafermap = Open("C:\Design\Scripts\JMP Scripts\GO-DataAnalysis\Manjit\JMP\wafer_map.jmp");   
+
+
+
+WaferNumbers = "(" || wf || ")";
+
+If( Length( wf ) > 0,
+	i = 1;
+	While( Munger( wf, i, "," ) > 0,
+		wf = Munger( wf, i, ",", "', '" );
+		i = Munger( wf, i, "," ) + 1;
+	);
+);
+If( Length( wf ) > 0,
+	wf = "('" || Uppercase( wf ) || "')"
+);
+
+WaferCharacter  = wf;   // SLDR.WAFTOFABHIST table has wafer as character
+
+// Pull ultraquasi data: Note the PARMNUM operation numbers
+
+qmfExample1 = Open Database(
+                "DSN="||DSN_sld||";UID="||UID_sld||";PWD="||PWD_sld||";",
+                "SELECT A.WAFERNUM, A.ROWNUM, A.OP as quasiOP, A.PRODUCT, A.TOOL, A.PROCESSTS, Hour(A.PROCESSTS) as Qhour, A.JOBNUM
+				 , A.SITE, A.PARMNUM, A.PARMNAME, A.SLIDER1, A.SLIDER2, A.SLIDER3,
+				 A.SLIDER4, A.SLIDER5, A.SLIDER6, A.SLIDER7, A.SLIDER8, A.SLIDER9,
+				 A.SLIDER10, A.SLIDER11, A.SLIDER12, A.SLIDER13, A.SLIDER14, A.SLIDER15,
+				 A.SLIDER16, A.SLIDER17, A.SLIDER18, A.SLIDER19, A.SLIDER20, A.SLIDER21,
+				 A.SLIDER22, A.SLIDER23, A.SLIDER24, A.SLIDER25, A.SLIDER26, A.SLIDER27,
+				 A.SLIDER28, A.SLIDER29, A.SLIDER30, A.SLIDER31, A.SLIDER32, A.SLIDER33,
+				 A.SLIDER34, A.SLIDER35, A.SLIDER36, A.SLIDER37, A.SLIDER38, A.SLIDER39,
+				 A.SLIDER40, A.SLIDER41, A.SLIDER42, A.SLIDER43, A.SLIDER44, A.SLIDER45,
+				 A.SLIDER46, A.SLIDER47, A.SLIDER48, A.SLIDER49, A.SLIDER50, A.SLIDER51,
+				 A.SLIDER52, A.SLIDER53, A.SLIDER54, A.SLIDER55, A.SLIDER56, A.SLIDER57,
+				 A.SLIDER58, A.SLIDER59, A.SLIDER60
+				
+				FROM SLDR.ULTRAQUASI A
+				
+				WHERE WAFERNUM in "|| WaferNumbers ||"  
+				
+				and PARMNUM in (1608, 1609)
+     "); 
+qmfExample1 << set name("QuasiCombined");
+
+qmfStack = Data Table( "QuasiCombined" ) << Stack(
+			  columns(
+					:SLIDER1,         :SLIDER2,         :SLIDER3,         :SLIDER4,
+					:SLIDER5,         :SLIDER6,         :SLIDER7,         :SLIDER8,
+					:SLIDER9,         :SLIDER10,        :SLIDER11,        :SLIDER12,
+					:SLIDER13,        :SLIDER14,        :SLIDER15,        :SLIDER16,
+					:SLIDER17,        :SLIDER18,        :SLIDER19,        :SLIDER20,
+					:SLIDER21,        :SLIDER22,        :SLIDER23,        :SLIDER24,
+					:SLIDER25,        :SLIDER26,        :SLIDER27,        :SLIDER28,
+					:SLIDER29,        :SLIDER30,        :SLIDER31,        :SLIDER32,
+					:SLIDER33,        :SLIDER34,        :SLIDER35,        :SLIDER36,
+					:SLIDER37,        :SLIDER38,        :SLIDER39,        :SLIDER40,
+					:SLIDER41,        :SLIDER42,        :SLIDER43,        :SLIDER44,
+					:SLIDER45,        :SLIDER46,        :SLIDER47,        :SLIDER48,
+					:SLIDER49,        :SLIDER50,        :SLIDER51,        :SLIDER52,
+					:SLIDER53,        :SLIDER54,        :SLIDER55,        :SLIDER56,
+					:SLIDER57,        :SLIDER58,        :SLIDER59,        :SLIDER60
+			  ),
+			  Source Label Column( "ColName" ),
+			  Stacked Data Column( "UQRELG_Res" ),
+			  Output Table( "UltraQuasi" )
+	);
+	
+	
+qmfStack<<New Column("col", numeric , continuous, Formula ( Num( Remove( :ColName, 1, 6 ) ) ));
+qmfStack<<New Column("UQRELGRes1500to2800", numeric, continuous , Formula (If(1500 <  :UQRELG_Res < 2800,  :UQRELG_Res, Empty())));
+//Hardcoded OP num
+qmfStack<<New Column("UQOP", numeric , continuous, Formula ( Match(Left(:QUASIOP, 6),	 
+																						"510330", "Af_COC", 
+																						"500030", "Bf_COC",
+																						"510900", "Af_COC") )); 
+
+qmfStack:col<<Delete formula;
+qmfStack:Name("UQRELGRes1500to2800")<<Delete formula;
+qmfStack:Name("UQOP")<<Delete formula;
+
+
+// Pull ELG offset data:
+
+qmfExample2 = Open Database(
+						"DSN="||DSN_sld||";UID="||UID_sld||";PWD="||PWD_sld||";",
+		"SELECT B.wafernum as wafer, B.rownum, B.parmname, B.parmvalue, B.ACTIVEUNTILTS, B.processdate
+		FROM SLDR.WAFTOFABHIST B
+		
+		WHERE (B.WAFERNUM in "|| WaferCharacter ||") 
+		AND (B.PARMNAME LIKE 'K_Slider_Windage%'
+		  OR B.PARMNAME LIKE 'RL_Slider_Windage%'
+		  OR B.PARMNAME LIKE 'K_RELG2%'
+		  OR B.PARMNAME LIKE 'RL_RELG2%'
+		  OR B.PARMNAME LIKE 'OffSet_RELG2%'
+		  OR B.PARMNAME LIKE 'SH_OFFSET_SELG'
+			  )
+		AND (B.ACTIVEUNTILTS IS NULL)
+			 "); 
+			 
+			 
+qmfExample2 << set name("WafToFab");
+qmfExample2<<New Column("WaferNUM", numeric, continuous , Formula (num(:Wafer)));
+
+// Split the qmfExample2 table by paramname to get the offset
+
+qmfSplit = qmfExample2 << Split(
+			  Split By( :PARMNAME ),
+			  Split( :PARMVALUE ),
+			  Group( :WaferNUM, :ROWNUM ),
+			  Output Table( "KnRL" ),
+			  Remaining Columns( Drop All )
+		);
+
+// Split the ultraquasi table by after and before COC
+		
+uqSplit = qmfStack<< Split(
+			Split By( :UQOP ),
+			Split( :UQRELG_Res, :UQRELGRes1500to2800 ),
+			Group( :WAFERNUM, :ROWNUM, :Col, :PARMNAME, :PRODUCT, :JOBNUM, :SITE ),
+			Output Table( "UQ_Raw" ),
+			Remaining Columns( Drop All ));
+		
+// Update the uqSplit table with ELG offset data
+
+dt_ELG_final = uqSplit<<Update(
+				With(qmfSplit),
+				Match Columns(:WAFERNUM = :WaferNUM, :ROWNUM = :ROWNUM));
+
+
+//Add SH_target Information:	
+	
+dt1 = open database("DSN="||DSN_sld||";UID="||UID_sld||";PWD="||PWD_sld||";",
+
+		"
+		SELECT A.WAFERNUM, A.ROWNUM, A.COLNUM, A.OP, A.OPNUM, A.SITE, A.JOBNUM, B.LAPHEAD, A.SLIDERID, 
+		A.HOLDER, A.POSX, A.MTPOSITION, A.TOOL, A.TOOLTS as PROCESSTS, A.STATUSINFO, A.LATCHCODE, A.DEFECTCODES, 
+		A.RFINAL, A.SHFINAL, A.SIGMAMEAN, A.RATE, A.FORCE, A.LAPSUBPHASE,  A.LAPTIME, A.SMEARINDEX, A.STORETS, 
+		A.PRODUCT, A.APPLIEDFPOFFSET, A.FINALSHWFP, A.ELGTYPE, A.ELGLAPMODE, A.SELGOFFSET, A.LEGID, A.ALDSMEARRES, 
+		A.SMEARRES, A.WAFERDEFECT, B.PLATEID, B.PLATERBCOUNT, B.PLATECONDITION, B.LAPTARGETSH, B.K, 
+		B.RL, B.LAPMODE, B.SHMEDIAN, B.ROWLATCHCODE, B.RECIPENAME, B.ALLWAFERDEF, B.WAFDEFMEAS
+		
+		FROM SLDR.LAPFINALSUBPHASE A INNER JOIN SLDR.LAPRUN B ON 
+		B.WAFERNUM = A.WAFERNUM AND B.ROWNUM = A.ROWNUM AND B.TOOLTS = A.TOOLTS
+		
+		WHERE (A.WAFERNUM in "|| WaferNumbers ||" )
+			 AND NOT (A.FINALSHWFP < (B.LAPTARGETSH - 45))
+			 AND NOT (A.FINALSHWFP > (B.LAPTARGETSH + 45))
+			 AND (A.FINALSHWFP > 0)
+			 AND NOT (A.COLNUM IN (16, 46, 6, 26, 36, 56))
+			 AND (A.TOOLTS = (SELECT MAX(C.TOOLTS) AS MAX_TOOLTS FROM SLDR.LAPRUN C WHERE A.WAFERNUM = C.WAFERNUM AND A.ROWNUM = C.ROWNUM))
+		ORDER BY 13 ASC
+		",
+	);
+
+
+// Round applied offset by 5nm:
+
+dt1 << set name("sh_target_offset");
+	
+dt1:APPLIEDFPOFFSET << set name("APPLIEDFPOFFSET_Org");	
+dt1:FINALSHWFP << set name("FINALSHWFP_Org");	
+
+dt1<< New Column("APPLIEDFPOFFSET",
+				Formula(If(:APPLIEDFPOFFSET_Org[Row()] != -2, Round(:APPLIEDFPOFFSET_Org / 5, 0) * 5, 
+						Round((:APPLIEDFPOFFSET_Org[Row() - 1] + :APPLIEDFPOFFSET_Org[Row() + 1]) / (2 * 5), 0) * 5)),evalformula);
+dt1:APPLIEDFPOFFSET<<delete formula;
+dt1<< New Column("FINALSHWFP",
+				Formula(If(:APPLIEDFPOFFSET_Org[Row()] != -2, :FINALSHWFP_Org, (:FINALSHWFP_Org[Row() - 1] + :FINALSHWFP_Org[Row() + 1]) / 2)),evalformula);
+
+dt1:FINALSHWFP<<delete formula;
+
+// Update Ultraquasi with lap target SH:
+
+dt_ELG_final << Update(With( (dt1 ) ),
+			 Match Columns( :WAFERNUM = WAFERNUM, :ROWNUM = :ROWNUM, :col = :COLNUM ),
+			 Add Columns from Update table( :SLIDERID, :SHFINAL, :LAPTARGETSH, :APPLIEDFPOFFSET, :FINALSHWFP_Org, :APPLIEDFPOFFSET_Org )
+			 
+			 );
+
+dt_ELG_final << New Column("SH_target", Numeric, Continuous, Formula(:LAPTARGETSH - :APPLIEDFPOFFSET),evalformula);      // Add SH_target column
+dt_ELG_final << New Column("col_lap", Formula(If(:col <= 2, 2, If(:col == 31, 29, 
+				If(Modulo(:col, 2) == 1 | :col == 16 | :col == 46 | :col == 32, :col, :col - 1)))), evalformula);   // Add lap column information for the sake
+
+
+// Add RU/RL information and RELG SH before and after COC:
+	
+dt_ELG_final <<New Column("Reader", character, nominal , Formula ( Match(Right(:PARMNAME, 1), "1", "Upper", "2", "Lower") ));
+dt_ELG_final <<New Column("WAFER_reader", character, nominal , Formula (Char(:WAFERNUM) || "_" || :Reader));
+dt_ELG_final <<New Column("RELGsh_Af_COC", numeric, continuous , Formula (Match(Right(:PARMNAME, 1), "1", (:K_Slider_Windage / (:Name("UQRELGRes1500to2800 Af_COC") - :RL_Slider_Windage)) * 1000 + :SH_OFFSET_SELG, "2", (:K_RELG2 / (:Name("UQRELGRes1500to2800 Af_COC") - :RL_RELG2)) * 1000 + :OffSet_RELG2)));
+dt_ELG_final <<New Column("RELGsh_Bf_COC", numeric, continuous , Formula (Match(Right(:PARMNAME, 1), "1", (:K_Slider_Windage / (:Name("UQRELGRes1500to2800 Bf_COC") - :RL_Slider_Windage)) * 1000 + :SH_OFFSET_SELG, "2", (:K_RELG2 / (:Name("UQRELGRes1500to2800 Bf_COC") - :RL_RELG2)) * 1000 + :OffSet_RELG2)));
+dt_ELG_final:reader<<Delete formula;
+
+// Update the above table with quad and TW information:
+
+dt_ELG_final << Update(With( (dt_wafermap ) ),
+			 Match Columns( :ROWNUM = :row, :col = :col ),
+			 Add Columns from Update table( :tw_group, :x, :y, :radius, :quad, :Quad X, :Quad Y ));
+
+dt_ELG_final << New Column("tw_group2", Character, Nominal, Formula(Match(:tw_group, 1, "TW1", 2, "TW2", 3, "TW3",)),evalformula); 
+dt_ELG_final:tw_group2 << Delete formula;
+dt_ELG_final << Delete columns("tw_group"); 
+dt_ELG_final:tw_group2 << Set Name("tw_group");
+
+// Sort and move some columns to first:
+
+dt_ELG_final << Sort(By(:WAFERNUM, :SLIDERID, :Reader,:tw_group, :SH_target), Replace table (1)); 
+dt_ELG_final << Move selected columns({"WAFER_reader","WAFERNUM","ROWNUM","col","SLIDERID","tw_group","Reader","SH_target","SHFINAL","RELGsh_Af_COC","RELGsh_Bf_COC"}, to first);
+
+
+close(qmfExample1, no save);			// SLDR.ULTRAQUASI
+close(qmfExample2, no save);			// SLDR.WAFTOFABHIST
+close(qmfStack, no save);
+close(qmfSplit , no save);
+close(dt_wafermap, no save);
+close(dt1, no save);					// SLDR.LAPFINALSUBPHASE
+close(sh_target_offset2, no save);
+
+
+
+
+

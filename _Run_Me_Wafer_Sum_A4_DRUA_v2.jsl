@@ -1,0 +1,76 @@
+
+
+// ----------------------------------------------------------------------------
+//
+// Script for A4 summary data and plot in TDMR LeoB & LeoC PROGRAM OR DOE WAFERS WITH SINGLE TW 
+// This script is wrong for WIW TW matrix 
+// Try using 10 wafers or less since some plots or Legends are by wafer
+//  
+// JMP 12
+// 
+// Version 1.0
+// Author: Manjit P.
+// Date  : 02/08/2017
+// Revision History
+// No.	When		 		Who				What
+// 1	2/13/2018			Manjit P.		Added RMIN4C in Chimp & K3R3 calc sigma
+// 1.1  5/21/2018			Manjit P.		Added H50 in DVH12
+// 1.2  7/9/2018			Manjit P.		Modified for DRUA (Ruby+ format): 4C --> 2C in chimp
+// 2.0  9/16/2018			Manjit P.		Added more parameters from chimp & all parameters from DVH11 & DVH12
+//											Added variability charts and saved on "Figure" directory 
+// 											Added K5 verity raw data, adds another data table and plot
+// 											Added Data folder, Added ExpID, Added more chimp parameters
+// 2.1  9/26/2018			Manjit P.		Added folder for experiment, changed raw data plots to by wafer instead of color by wafer,
+//											modified scales in images, included anelva tool and dep date
+//
+//
+//				
+//-----------------------------------------------------------------------------
+
+
+Clear Log();
+clear Globals();
+
+// Provide login 
+
+Include("C:\Design\Scripts\JMP Scripts\GO-DataAnalysis\Manjit\JMP\login.jsl");
+
+// Give comma separated ExpID & wafer list
+
+ExpID = "EXP407";
+
+// Select wafer JMP file
+
+/*
+files = Pick File("SELECT SINGLE COLUMN WAFER JMP FILE","",{"jmp Files|jmp;","All Files|*"},1,0,"");
+dt0=Open(files);
+col = Column(1);
+col << Data Type( Character );
+wafers = col << Get values;
+
+wafer_list =  Concat Items(wafers, ",") ;
+*/
+
+
+
+wafer_list = "285778,287756";
+
+
+// Provide base_path path to save data & images:
+
+::base_path = "C:/Design/Scripts/JMP Scripts/GO-DataAnalysis/Manjit/JMP/A4/Ruby_waferDispo/";
+
+::figure_path = base_path||"/"||ExpID||"_"||"Figures"||"/";
+If (Directory Exists (figure_path) ==0, CreateDirectory(ExpID||"_"||"Figures") );
+
+::data_path = base_path||"/"||ExpID||"_"||"Data"||"/";
+If (Directory Exists (data_path) ==0, CreateDirectory(ExpID||"_"||"Data") );
+
+
+include (base_path||"Wafer_Sum_A4_DRUA_v2_SumFile.jsl");
+include (base_path||"K5Verity_Raw_v2.jsl");
+include (base_path||"chimp_RawData_OP3557_v3.jsl");
+include (base_path||"Wafer_Sum_A4_DRUA_v3_Figures.jsl");	
+
+dt2 << save (data_path||ExpID||"_Chimp_OP3557_raw_Ruby.jmp");
+dt2a << save (data_path||ExpID||"_Waf_SUM_A4_Ruby.jmp");

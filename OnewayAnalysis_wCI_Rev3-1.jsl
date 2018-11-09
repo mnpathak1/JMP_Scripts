@@ -1,0 +1,191 @@
+///*debug step*/
+// --------------------------------------------
+// Oneway Analysis Simplified (JMP 7 only)
+// JMP script to do oneway analysis where various 
+// parameters have already have been set and 
+// has only the important parameter summary
+// Version 3.0
+// Author: Srikanth Ganesan
+// Date  : 02/07/2013
+// Revision History
+// No.	When		Who			What
+// 1.0	08/10/08	Srikanth G.	
+// 2.0	08/12/08	Srikanth G. 
+// 2.1  04/27/11	Srikanth G.	
+// 3.0	02/07/13	Srikanth G.
+//---------------------------------------------
+Clear Globals();
+Clear LOG();
+dtdata = current data table();
+colname= dtdata<<Get Column Names(string);
+show("1");
+//set up Config file
+configfilename = "Config.JMP";
+dtconf = open(configfilename);
+current data table(dtconf);
+// read old column names from config file
+XABS = column("xabscissa")[1];
+YXS =  :yordinate<<Get Values;
+NUMY = Nitems(YXS);
+
+show("2");
+//Check if old Yaxis column names are still in data table
+For(i=1, i<=NUMY, i++,
+	If(Contains(colname,char(YXS[i])) == 0,
+		RemoveFrom(YXS,i);
+		NUMY = NUMY-1;
+		i = i-1;
+	);
+);
+
+
+show("3");
+current data table(dtdata);
+temp="";
+For(i=1, i<=NUMY, i++,
+	if(i< NUMY,
+		temp = temp || "Column(char(YXS[" || char(i) || "])), ";,
+		temp = temp || "Column(char(YXS[" || char(i) || "])) "
+	);
+);
+
+//Check if old Xaxis column name is still in data table
+If(Contains(colname,char(XABS)) == 0,
+		XABS = "";
+		r=Eval(Parse(
+		"ColumnDialog(
+				YCol =ColList(\!"Y, Numeric\!",Min Col(1), DataType(Numeric), Columns(" || temp || ")),
+				XCol =ColList(\!"X, Categorical\!", Max Col(1),Min Col(1), DataType(Character))
+		);"
+	));
+		,
+
+	r=Eval(Parse(
+		"ColumnDialog(
+				YCol =ColList(\!"Y, Numeric\!",Min Col(1), DataType(Numeric), Columns(" || temp || ")),
+				XCol =ColList(\!"X, Categorical\!", Max Col(1),Min Col(1), DataType(Character), Columns( Column( char(XABS)) ))
+		);"
+	));
+		);
+show(r);
+bval1=r["Button"];
+if(bval1==-1,
+	Close(dtconf, No Save);
+	break);
+
+
+Remove From( r ); Eval List( r );
+xc = char(r["XCol"][1]);
+yc = r["YCol"];
+
+show("4");
+//Update Config table with new column names
+current data table(dtconf);
+n=NRow(dtconf); 
+For(i=n,i>1,i--,
+dtconf<<Delete Rows(i));
+if(N Items(yc)> 1,
+	dtconf<<Add Rows(N Items(yc)-1);
+);
+
+dtconf<<NewColumn("newxabscissa", Character);
+:newxabscissa[1]= xc;
+dtconf<<NewColumn("newyordinate", Character);
+For(i=1, i<=N Items(yc), i++,
+:newyordinate[i]=char(yc[i]);
+);
+
+dtconf<<delete columns("xabscissa");
+dtconf<<delete columns("yordinate");
+
+col=Column("newxabscissa"); col<<Set Name("xabscissa");
+col=Column("newyordinate"); col<<Set Name("yordinate");
+
+dtconf << Save();
+close(dtconf,Save("Config.jmp"));
+show("5");
+//Construct the plots
+temp="";
+For(i=1, i<=N Items(yc), i++,
+if(i< N Items(yc),
+	temp = temp || "Column(char(yc[" || char(i) || "])), ";,
+	temp = temp || "Column(char(yc[" || char(i) || "])) "
+);
+);
+current data table(dtdata);
+owobj =  Eval(Parse(
+"Oneway(
+	Y(" ||  temp || " ),
+	X( Column(\!" " || xc || "\!") ), 
+	All Pairs(
+		0,
+		Confid Quantile( 0 ),
+		LSD Threshold Matrix( 0 ),
+		Ordered Differences Report( 0 )
+	),
+	Quantiles( 1 ),
+	Means and Std Dev( 1 ),
+	Box Plots( 1 ),
+	Mean Diamonds( 1 ),
+	Mean Lines( 1 ),
+	Mean Error Bars( 1 ),
+	Std Dev Lines( 1 ),
+	Comparison Circles( 1 ),
+	Points Jittered( 1 ),
+	X Axis proportional( 0 )
+	);"
+	
+));
+show("6");
+r = owobj<<report;
+owobj<<Quantiles( 0 );
+owobj<<Box Plots( 1 );
+owobj<<Means and Std Dev( 0 );
+
+If(N Items(yc)==1, 
+	r<<set title(Right(r<<get title(),Length(r<<get title())-19));
+	s_median = r[ColumnBox("Median")];
+	s_mean = r[ColumnBox("Mean")];
+	s_stdev = r[ColumnBox("Std Dev")];
+	s_level = r[ColumnBox("Level")];
+	s_number = r[ColumnBox("Number")];
+	s_low95 = r[ColumnBox("Lower 95%")];
+	s_upp95 = r[ColumnBox("Upper 95%")];
+	summ = Outline Box(
+		"Summary",
+		H List Box(s_level,s_number,s_median,s_mean,s_stdev,s_low95,s_upp95)
+		);
+	owobj<<append(summ);
+	owobj<<	All Pairs(
+		1,
+		Confid Quantile( 0 ),
+		LSD Threshold Matrix( 0 ),
+		Ordered Differences Report( 0 )
+	);,
+	
+	For(i=1,i<=N Items(yc), i++, 
+	r[i]<<set title(Right(r[i]<<get title(),Length(r[i]<<get title())-19));
+	s_median = r[i][ColumnBox("Median")];
+	s_mean = r[i][ColumnBox("Mean")];
+	s_stdev = r[i][ColumnBox("Std Dev")];
+	s_level = r[i][ColumnBox("Level")];
+	s_number = r[i][ColumnBox("Number")];
+	summ = Outline Box(
+		"Summary",
+		H List Box(s_level,s_number,s_median,s_mean,s_stdev,s_low95,s_upp95)
+		);
+	owobj[i]<<append(summ);
+	owobj[i]<<	All Pairs(
+		1,
+		Confid Quantile( 0 ),
+		LSD Threshold Matrix( 0 ),
+		Ordered Differences Report( 0 )
+	);
+);
+	
+	
+);
+
+
+
+show("END");

@@ -1,0 +1,253 @@
+
+// ----------------------------------------------------------------------------
+//
+// Script for A4 summary data and quasi Amp and Rc prediction based on wafer data in TDMR LeoB & LeoC program wafers
+// 
+//  
+// JMP 12
+// Wafer A4 Summary with Quasi Rc and Amplitude prediction 
+// Version 1.0
+// Author: Manjit P., Howie Z.
+// Date  : 02/08/2017
+// Revision History
+// No.	When		 	Who				What
+// 1	2/13			Manjit P.		Added RMIN4C in Chimp & K3R3 calc sigma
+// 1.1  5/21			Manjit P.		Added H50 in DVH12
+// 1.2  7/9/2018		Manjit P.		Modified for DRUA (Ruby+ format): 4C --> 2C in chimp
+//					
+//-----------------------------------------------------------------------------
+
+Clear Log();
+clear Globals();
+Include("C:\Design\Scripts\JMP Scripts\GO-DataAnalysis\Manjit\JMP\login.jsl");
+
+// Select wafer JMP file
+/*
+files = Pick File("SELECT SINGLE COLUMN WAFER JMP FILE","",{"jmp Files|jmp;","All Files|*"},1,0,"");
+dt0=Open(files);
+col = Column(1);
+col << Data Type( Character );
+wafers = col << Get values;
+
+wafer_list =  Concat Items(wafers, ",") ;
+*/
+
+wafer_list = "293552,293568";
+
+// FLTW & RG
+
+dt1 = open database("DSN="||DSN_helga||";UID="||UID_helga||";PWD="||PWD_helga||";",
+     "SELECT WAFERNUM, PARMNAME, MEAN 
+      FROM WTOOLSUM.CDSTEM 
+      where wafernum in ("||wafer_list||") and 
+      OP in ('1593') and 
+      PARMNAME in ('MRW_D2', 'MRW_D2_LOWER', 'RG', 'RG_LOWER') and
+      LASTVIEW = 'Y'
+      ";, "CDSTEM",
+     
+    );
+    
+dt1 << New Column("Reader",Formula(If(Contains(:PARMNAME, "LOWER"), "Lower", "Upper")),evalformula);
+dt1 << Move Selected Columns( {"Reader"}, After( "WAFERNUM" ) );
+:Reader << Delete Formula;
+dt1 << New column("PARAM", formula(If(Contains(:PARMNAME, "MRW"), Remove(:PARMNAME, 7, 6), Contains(:PARMNAME, "RG"), 
+				  Remove(:PARMNAME, 3, 6), :PARMNAME)), evalformula);
+:PARAM << Delete Formula;
+dt1 << Delete Columns("PARMNAME");
+dt1a = dt1 << Transpose( columns( :MEAN ), By( :WAFERNUM, :Reader ), Label( :PARAM ), Output Table( "CDSTEM_T" ));
+dt1a << Delete Columns("Label");
+:MRW_D2 << set name("FLTW_MEAN");
+
+close (dt1, no save);
+
+
+// Chimp
+
+dt2 = open database("DSN="||DSN_helga||";UID="||UID_helga||";PWD="||PWD_helga||";",
+     "SELECT WAFERNUM, PARMNAME, MEDIAN 
+      FROM WAFTOOLSUM.CHIMP 
+      WHERE WAFERNUM IN ("||wafer_list||") and 
+      LASTVIEW = 'Y' and
+      PARMNAME in ('BISL', 'BISU', 'KTCRAL', 'KTCRAU', 'RMIN2UC', 'RMIN2LC', 'RL2LC', 'RL2UC', 'TMR2LC', 'TMR2UC', 'ETWL', 'ETWU', 'EA1SHL', 'EA1SHU' )
+      " 
+      ;, "CHIMP_SUM",     
+    );
+
+
+dt2 << New column("Parameter", Formula(If(  Right(:PARMNAME, 1) == "L", Remove(:PARMNAME), 
+											Right(:PARMNAME, 1) == "U", Remove(:PARMNAME), 
+											Right(:PARMNAME, 2) == "LC", Substitute(:PARMNAME, "LC", "C"), 
+											Right(:PARMNAME, 2) == "UC", Substitute(:PARMNAME, "UC", "C"))), evalformula);
+											
+dt2 << New column("Reader", formula(If(Right(:PARMNAME, 1) == "L", "Lower", 
+									Right(:PARMNAME, 1) == "U", "Upper", 
+									Right(:PARMNAME, 2) == "LC", "Lower", 
+									Right(:PARMNAME, 2) == "UC", "Upper")), evalformula);
+									
+:Parameter << Delete Formula;
+:Reader << Delete Formula;
+
+
+// Transpose Chimp
+
+dt3 = dt2 << Transpose(	columns( :MEDIAN ),	By( :WAFERNUM, :Reader ), Label( :Parameter ), Output Table( "CHIMP_SUMT" ));
+
+// DVH11 median and stdev
+
+dt4 = open database("DSN="||DSN_helga||";UID="||UID_helga||";PWD="||PWD_helga||";",
+     "SELECT WAFERNUM, DEVICE, PARM, MEDIAN, STDEV
+      FROM WTOOLSUM.DVH11 
+      WHERE WAFERNUM IN ("||wafer_list||") and
+      PARM IN ('AmpLowField', 'Asymmetry', 'HEffective', 'PinAngleSB', 'SBCF', 'Utilization') and
+      DEVICE in ('A1LA', 'A1U')
+      
+      " 
+      ;,"DVH11_SUM",    
+    );
+
+dt4 << New column("Reader", Formula(Match( :DEVICE, "A1LA", "Lower", "A1U", "Upper" )), evalformula);
+dt4:Reader << Delete formula;
+
+dt4a = dt4 << Transpose( columns( :MEDIAN ), By( :WAFERNUM, :Reader ), Label( :PARM ), Output Table( "DVH11_SUMT_median" ));
+dt4a << Delete Columns("Label");
+
+dt4b = dt4 << Transpose( columns( :STDEV ), By( :WAFERNUM, :Reader ), Label( :PARM ), Output Table( "DVH11_SUMT_stdev" ));
+dt4b << Delete Columns("Label");
+
+
+// Append "_STDEV" to headers
+
+col_list = dt4b << get column names(string);
+newlist = {};
+
+for (i=3 , i<=nitems(col_list), i++, 
+		Insert Into(newlist, col_list[i]||"_STDEV" );
+		column(dt4b, i) << set name (eval(newlist[i-2]));
+		);
+
+// DVH12 median
+
+dt5 = open database("DSN="||DSN_helga||";UID="||UID_helga||";PWD="||PWD_helga||";",
+     "SELECT WAFERNUM, DEVICE, PARM, MEDIAN 
+      FROM WTOOLSUM.DVH12 
+      WHERE WAFERNUM IN ("||wafer_list||") and
+      DEVICE IN ('ElemL', 'ElemU', 'X1L', 'X1U') and
+      PARM IN ('H10', 'H50', 'H90')
+      
+      " 
+      ;, "DVH12_SUM"    
+    );
+
+dt5 << New column ("Reader", Formula(Match(Right(:DEVICE, 1), "U", "Upper", "L", "Lower")), evalformula);
+dt5 << New column ("PARM_DEVICE", formula(:PARM || "_" || Remove(:DEVICE)), evalformula);
+
+dt5T = dt5 << Transpose( columns( :MEDIAN ), By( :WAFERNUM, :Reader ), Label( :PARM_DEVICE ), Output Table( "DVH12_SUMT" ));
+dt5T << Delete Columns("Label");
+
+
+// K3R3 calc, from Howie
+
+dt6 = open database("DSN="||DSN_helga||";UID="||UID_helga||";PWD="||PWD_helga||";",
+     "
+    WITH lastts as (select wafernum, max(linkts) as mts 
+    FROM wtoolsum.archovly where op in ('1934')
+	and wafernum in ("||wafer_list||")
+	GROUP BY wafernum),
+
+	a as 
+	(
+	SELECT storets, WAFERNUM, OP, BATCH, HT, right(trim(RESOURCE),3) as Archer,  DEFCODE as Def , TOOLTS, NUMSITES as Sites , 
+	NUMGOODSITES as Good, NUMMAVERICKS as MAV, PARMNAME as Parm, PARMMEAN as mean , PARMSIGMA as sigma,
+	PARMKSIGMA as ksigma, COMMENT,X_MEAN_TARGET as Xtarg, Y_MEAN_TARGET as Ytarg, 
+	EXPOSETOOLNAME as exposetool,EXPOSETS,  EXPERIMENT as expid, LinkTS
+
+	FROM WTOOLSUM.ARCHOVLY
+	where (linkts,wafernum) in (select mts,wafernum from lastts)
+	and 
+	op = '1934' and parmname = 'CD_Y' and numsites > 1
+
+	), 
+
+	b as 
+	(SELECT distinct WAFERNUM, toolts, LINKTS,op, parmsigma as YRESsig
+	FROM WTOOLSUM.ARCHOVLY 
+	WHERE op in (select op from a)
+	and toolts >= (select min(toolts) from a)
+	AND parmtype='Linear Kla Prod'
+	and parmname='RES_Y' and (linkts,wafernum) in (select mts,wafernum from lastts) )
+	, 
+
+	c as 
+	(select wafernum, toolts, op, cdbotmean as R3finalmean, cdbotsigma as R3finalsigma
+	from wtoolsum.veritysem where
+	wafernum in (select wafernum from a) and toolts >= (select min(toolts)-90 days from a)
+    and target = 'K3F_750_2KV' and op = '1822' and lastview='Y' and cdbotmean > 700),
+
+	d as 
+	(select wafernum, toolts, op, cdbotmean as K3finalmean, cdbotsigma as K3finalsigma
+	from wtoolsum.veritysem where
+	wafernum in (select wafernum from a) and toolts >= (select min(toolts) from a) 
+		and target = 'K3F_750_2KV' and op = '2213' and lastview='Y' and cdbotmean > 700)
+
+	SELECT a.WAFERNUM, a.OP,  a.HT, a.Archer,  a.Def , left(a.TOOLTS,13) as ToolTS,
+	  a.Parm, a.mean , a.sigma, a.ksigma,
+	  b.YRESsig, c.R3finalmean,c.R3finalsigma,d.K3finalmean, d.K3finalsigma, 
+	  (a.mean + 0.5*(d.k3finalmean-c.r3finalmean)) as K3R3_calc,
+	  sqrt(a.sigma*a.sigma + 0.25*d.k3finalsigma*d.k3finalsigma + 0.25*c.r3finalsigma*c.r3finalsigma) as K3R3_calc_sigma,
+	  a.Sites , a.Good , a.Mav,  
+	  a.COMMENT, a.exposetool, left(a.EXPOSETS,13) as ExposeTS,
+	  a.expid, a.BATCH, a.linkts
+	from a left join b on(a.wafernum=b.wafernum and a.linkts=b.linkts) 
+		   left join c on (a.wafernum=c.wafernum)
+		   left join d on (a.wafernum=d.wafernum)
+
+	order by a.wafernum,  a.toolts
+		 
+     
+    ";, "K3R3_CALC",
+     
+    );
+
+// Update Chimp transpose with othe tables
+
+dt3 << Update (With(dt1a), 
+					Match Columns( :WAFERNUM = :WAFERNUM, :Reader = :Reader), Add Columns from Update table( :FLTW_MEAN, :RG ));
+
+dt3 << Update (With(dt4a), 
+				   Match Columns( :WAFERNUM = :WAFERNUM, :Reader = :Reader),);
+dt3 << Update (With(dt4b), 
+				   Match Columns( :WAFERNUM = :WAFERNUM, :Reader = :Reader),);
+				   
+dt3 << Update (With(dt5T), 
+					Match Columns( :WAFERNUM = :WAFERNUM, :Reader = :Reader), 
+					Add Columns from Update table( :H10_Elem, :H50_Elem, :H90_Elem, :H10_X1, :H50_X1, :H90_X1 ));
+
+				   					
+dt3 << Update (With(dt6), 
+					Match Columns( :WAFERNUM = :WAFERNUM),
+					Add Columns from Update table( :K3R3_CALC, :K3R3_CALC_SIGMA, :HT ));
+					
+dt3 << Delete Columns("LABEL");
+dt3 << Move Selected Columns({"HT"}, After("Reader"));
+
+// Add prediction formula
+
+dt3 << New column("Mean(RELG_SH)", Formula(
+			Match(:reader, "Lower", 27.45 - 0.9054747 * :K3R3_CALC, "Upper", 26.285 + 0.00888 * :K3R3_CALC)	), evalformula);
+
+
+
+dt3 << Sort(By(:WAFERNUM, :Reader), Replace table (1));  
+dt3 << Set name ("Waf_SUM_A4");
+
+close(dt1, no save);
+close(dt1a, no save);
+close(dt2, no save);
+close(dt4, no save);
+close(dt4a, no save);
+close(dt4b, no save);
+close(dt5, no save);
+close(dt5T, no save);
+close(dt6, no save);
+
+

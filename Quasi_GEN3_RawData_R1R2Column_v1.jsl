@@ -1,0 +1,244 @@
+
+// --------------------------------------------
+//
+// Script to collect raw quasi data for GEN3 TDMR 10-pad wafers
+// Upper and lower readers are in different columns
+// to map quasi data with SDCT and HDD data
+// 
+// Compare parts from same JOBNUM
+//
+// MR1 --> Lower reader
+// MR2 --> Upper reader
+//
+// TW1 is WIDE, TW2 is MID, TW3 is NARROW following wafer level convension
+//
+// JMP 12
+// TDMR GEN3 raw quasi data 
+// Version 1.0
+// Author: Manjit P.
+// Date  : 05/16/2018
+// 
+// Revision History
+// No. When		 Who		What
+// 1  5/25/2018  Manjit P.  Added SH target
+// 2  5/25/2018  Manjit P.  Added DEF CODE SUMMARY by WAFER, tw_group, SH_Target
+// 3  6/21/2018  Manjit P.  Separated RBI and standard quasi, updated Leo C OR spec
+//
+//---------------------------------------------
+
+
+
+Clear Log();
+clear Globals();
+Include("C:\Design\Scripts\JMP Scripts\GO-DataAnalysis\Manjit\JMP\login.jsl");  // Log-in info
+
+// Change waferID
+
+wfnum="288529,288542,288525,288531,290448,290512,290513,290736,291002,287820";
+
+
+// Check OPNUM
+
+OPNUM_Q = 634550;
+OPNUM_rbi = 634520;
+
+impala3 = "DSN=BDP3-Impala-Prod;";    // BDP database connection
+
+DB2 = "DSN="||DSN_sld||";UID="||UID_sld||";PWD="||PWD_sld||";";  // for DB2
+
+// archived table example: SNJFABAR.TMP8315_OP2451_0
+// Original table: FAB.OP2451
+// Change DSN_arc to DSN_sld
+
+dt_all = open database(impala3,
+	"
+	Select A.WAFER ,A.ROW,A.P245108 as Parm_Num,A.P245109 as ParmName, A.PROCESSTS , A.P245111 as Operation_Mode
+		 ,  A.HTNUM
+		 , A.PROCESSDATE , A.STATNUM , A.EMPLOYEE
+		 , A.SITE , A.P245102 as EC_Level
+		 , A.P245103 as Carrier , A.P245106 as Part_ID 
+		 , A.P245107 as Test_ID,  A.P245110 as Operation      
+		 , A.PRODUCT, A.SEQUENCE_PARM, A.OPNUM, A.JOBNUM, A.PROBECARDID, A.P245114      
+		 , A.P245115 , A.P245116 , A.P245117 , A.P245118     
+		 , A.P245119 , A.P245120 , A.P245121 , A.P245122      
+		 , A.P245123 , A.P245124 , A.P245125 , A.P245126     
+		 , A.P245127 , A.P245128 , A.P245129 , A.P245130      
+		 , A.P245131 , A.P245132 , A.P245133 , A.P245134     
+		 , A.P245135 , A.P245136 , A.P245137 , A.P245138      
+		 , A.P245139 , A.P245140 , A.P245141 , A.P245142     
+		 , A.P245143 , A.P245144 , A.P245145 , A.P245146      
+		 , A.P245147 , A.P245148 , A.P245149 , A.P245150     
+		 , A.P245151 , A.P245152 , A.P245153 , A.P245154     
+		 , A.P245155 , A.P245156 , A.P245157 , A.P245158      
+		 , A.P245159 , A.P245160 , A.P245161 , A.P245162     
+		 , A.P245163 , A.P245164 , A.P245165 , A.P245166     
+		 , A.P245167 , A.P245168 , A.P245169 , A.P245170      
+		 , A.P245171 , A.P245172 , A.P245173 
+	FROM FAB.OP2451 A
+	where wafer in ("||wfnum||")
+	",
+	"Quasi_DB2"
+	);
+	
+// Remove space and . and replace with "_"
+
+
+dt_all << New Column("PARM_NAME", Character, Nominal, Formula(Substitute(Substitute( Trim( :PARMNAME ), " ", "_" ),".","")), );
+dt_all:PARM_NAME<< Delete formula;
+
+// Subset RBI OPNUM data
+
+dt_all << select where (:OPNUM==OPNUM_rbi);
+dtrbi = dt_all << Subset(Output table name("Quasi_DB2_rbi"));
+
+dtrbi_T = dtrbi << Transpose(
+		columns(
+			:P245114,:P245115,:P245116,:P245117,:P245118,:P245119,:P245120,:P245121,:P245122,:P245123,:P245124,:P245125,:P245126,:P245127,:P245128,:P245129,
+			:P245130,:P245131,:P245132,:P245133,:P245134,:P245135,:P245136,:P245137,:P245138,:P245139,:P245140,:P245141,:P245142,:P245143,:P245144,:P245145,
+			:P245146,:P245147,:P245148,:P245149,:P245150,:P245151,:P245152,:P245153,:P245154,:P245155,:P245156,:P245157,:P245158,:P245159,:P245160,:P245161,
+			:P245162,:P245163,:P245164,:P245165,:P245166,:P245167,:P245168,:P245169,:P245170,:P245171,:P245172,:P245173),
+		By(
+			:WAFER, :JOBNUM,:ROW ),
+		Label( :PARM_NAME ),
+		Output Table Name("RBI_transpose")
+	);
+
+dtrbi_T<<New Column ("col", Numeric, Continuous, Format("Best",10), Formula(Num( Substr( :Label, 2, 6 ) ) - 245113), );
+dtrbi_T:col<<delete formula;
+dtrbi_T << Move Selected Columns({"col"},After("Row"));
+dtrbi_T << Delete columns("Label");
+
+dtrbi_T:RCold_Res_MR1 << set name("RCold_Res_MR1_rbi");
+dtrbi_T:RCold_Res_MR2 << set name("RCold_Res_MR2_rbi");
+dtrbi_T:RHot_Res_MR1 << set name("RHot_Res_MR1_rbi");
+dtrbi_T:RHot_Res_MR2 << set name("RHot_Res_MR2_rbi");
+dtrbi_T:RCold_Sig_MR1 << set name("RCold_Sig_MR1_rbi");
+dtrbi_T:RCold_Sig_MR2 << set name("RCold_Sig_MR2_rbi");
+dtrbi_T:RHot_Sig_MR1 << set name("RHot_Sig_MR1_rbi");
+dtrbi_T:RHot_Sig_MR2 << set name("RHot_Sig_MR2_rbi");
+dtrbi_T:SPEC_DEF_CODE << set name("SPEC_DEF_CODE_rbi");
+dtrbi_T:Channel << set name("Channel_rbi");
+dtrbi_T:ProbeRetryCount << set name("ProbeRetryCount_rbi");
+dtrbi_T:Test_Time << set name("Test_Time_rbi");
+
+close(dtrbi, no save);
+
+// Subset normal quasi data
+
+dt_all << Clear Column Selection;
+dt_all << Clear Row Selection;
+
+dt_all << select where (:OPNUM==OPNUM_Q);
+dtstandard = dt_all << Subset(Output table name("Quasi_DB2_std"));
+
+dt_std_T = dtstandard << Transpose(
+		columns(
+			:P245114,:P245115,:P245116,:P245117,:P245118,:P245119,:P245120,:P245121,:P245122,:P245123,:P245124,:P245125,:P245126,:P245127,:P245128,:P245129,
+			:P245130,:P245131,:P245132,:P245133,:P245134,:P245135,:P245136,:P245137,:P245138,:P245139,:P245140,:P245141,:P245142,:P245143,:P245144,:P245145,
+			:P245146,:P245147,:P245148,:P245149,:P245150,:P245151,:P245152,:P245153,:P245154,:P245155,:P245156,:P245157,:P245158,:P245159,:P245160,:P245161,:P245162,
+			:P245163,:P245164,:P245165,:P245166,:P245167,:P245168,:P245169,:P245170,:P245171,:P245172,:P245173),
+		By(
+			:WAFER, :JOBNUM,:ROW ),
+		Label( :PARM_NAME ),
+		Output Table Name("Quasi_BDP_raw")
+	);
+
+close(dtstandard, no save);
+close (dt_all, no save);
+	
+Current Data Table(dt_std_T);
+dt_std_T<<New Column ("col", Numeric, Continuous, Format("Best",10), Formula(Num( Substr( :Label, 2, 6 ) ) - 245113), );
+dt_std_T:col<<delete formula;
+dt_std_T << Move Selected Columns({"col"},After("Row"));
+
+dt_std_T << Delete columns("Label");
+dt_std_T << New Column("HEAD_SN", Character, Nominal, 
+		   Formula(Substr(Hex(:WAFER, "integer"), 4, 5) || Substr(Hex(:ROW, "integer"), 6, 3) || Substr(Hex(:col, "integer"), 7, 2)));
+dt_std_T << Move Selected Columns({"HEAD_SN"},After("col"));
+dt_std_T << Sort(By(:WAFER, :ROW, :col, :HEAD_SN), Replace table (1)); 
+
+dt_std_T << Update (with (dtrbi_T),
+			Match columns (:WAFER = :WAFER, :ROW = :ROW, :col = :col));
+
+dt_std_T << new Column("Filter", numeric, continuous, formula(if (:SPEC_DEF_CODE<0,0,1)));  // Def code < 0 parts are filtered
+dt_std_T << new Column("DEFCODE>=0", numeric, continuous, formula(if (:SPEC_DEF_CODE>=0,1,0)));  // Def code >= 0 
+dt_std_T << new Column("DEFCODE=0", numeric, continuous, formula(if (:SPEC_DEF_CODE==0,1,0)));  // Def code = 0 i.e. quasi pass 
+
+close(dtrbi_T, no save);
+
+// SH target
+
+wfChar = "(" || wfnum || ")";
+
+If( Length( wfnum ) > 0,
+	i = 1;
+	While( Munger( wfnum, i, "," ) > 0,
+		wfnum = Munger( wfnum, i, ",", "', '" );
+		i = Munger( wfnum, i, "," ) + 1;
+	);
+);
+If( Length( wfnum ) > 0,
+	wfnum = "('" || Uppercase( wfnum) || "')"
+);
+
+dtsh = open database("DSN="||DSN_sld||";UID="||UID_sld||";PWD="||PWD_sld||";",
+
+		"
+		SELECT A.WAFERNUM, A.ROWNUM, A.COLNUM, A.SHFINAL, A.APPLIEDFPOFFSET, A.SELGOFFSET, B.LAPTARGETSH		
+		FROM SLDR.LAPFINALSUBPHASE A INNER JOIN SLDR.LAPRUN B ON 
+		B.WAFERNUM = A.WAFERNUM AND B.ROWNUM = A.ROWNUM AND B.TOOLTS = A.TOOLTS
+		
+		WHERE (A.WAFERNUM in "|| wfChar ||" )
+			 
+		",
+		"SH_offset"
+	);
+
+dt_std_T << Update (with (dtsh),
+			Match columns (:WAFER = :WAFERNUM, :ROW = :ROWNUM, :col = :COLNUM)
+			
+);
+
+close(dtsh, no save);
+
+
+// Join wafer map: TW1 is wide, TW2 is mid, TW3 is narrow following wafer convension
+
+dt_wafermap = Open("C:\Design\Scripts\JMP Scripts\GO-DataAnalysis\Manjit\JMP\wafer_map.jmp");   
+
+dt_std_T << update(
+			With(dt_wafermap),
+			Match columns(:ROW = :row, :col = :col)
+	
+);
+
+close(dt_wafermap, no save);
+
+// SH =_Target column rounding Applied Offset to 5nm
+dt_std_T << new column("SH_Target", numeric, continuous, formula(Round(:LAPTARGETSH - Round(:APPLIEDFPOFFSET / 5, 0) * 5)) );
+dt_std_T << move selected columns({"tw_group", "SH_Target", "SHFINAL", "APPLIEDFPOFFSET","LAPTARGETSH","SELGOFFSET"}, after("HEAD_SN"));
+
+// Yield summary table
+
+sum_DefCode = dt_std_T << Summary(
+						Group( :WAFER, :SH_Target, :SPEC_DEF_CODE ),
+						Freq( "None" ),
+						Weight( "None" ),
+						Link to original data table( 0 ),
+						output table name( "sum_DefCode" )
+);
+
+// Update summary with def code definition
+
+DefCodeTable = Open("C:\Design\Scripts\JMP Scripts\GO-DataAnalysis\Manjit\JMP\Quasi\Quasi_def_code.jmp");
+
+sum_DefCode << Update (with (DefCodeTable),	Match columns(:SPEC_DEF_CODE = :Code),);
+
+sum_DefCode << select where (:SPEC_DEF_CODE < 0 | Is Missing (:SH_Target));
+sum_DefCode << delete rows;
+sum_DefCode << new column("Yield_dLoss", numeric, continuous, formula(:N Rows *100 / Col Sum(:N Rows, :WAFER, :SH_Target)));
+sum_DefCode:Yield_dLoss << delete formula;
+
+close(DefCodeTable);
+
+dt_std_T << set name("Quasi_raw_"||substitute(wfnum,",","_", "(", "", ")", "", "'", "" ));

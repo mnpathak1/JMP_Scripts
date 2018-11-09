@@ -1,0 +1,714 @@
+//////////////////////////////////////////////////////////////////////////////////////////
+//
+// JSL HDD Query to pull HDD data from Global HiLiter
+// This script works only in LeoB TDMR drive product
+//
+// Owner: Srikanth Ganesan
+// Rev.	Owner			Date	Purpose
+// 1.0	Srikanth G.		3/1/17	Original
+// 1.1	Srikanth G.		3/7/17	Added MCW, MRW in nm units
+// 2.0	Srikanth G.		3/30/17	Added ADC, SER, RMR; Corrected MRW, MCW pull
+// 2.1	Srikanth G.		4/20/17	Added Ampl, Asym, CTS/DTS, SNR & OW
+// 3.0  Manjit P.       5/16/18 Updated new ACC table, removed EndDates from queries, updated each query  
+//                              Upper reader (R0) and lower reader (R1) are in separate columns in ACC table
+//                              Generated 2nd table for HI with reader (RU/RL/TDMR) and Zone (OD/MD/ID) in columns
+//
+// In ACC table:
+// MFGID_3 = 0 --> TDMR
+// MFGID_3 = 5 --> RU
+// MFGID_3 = 6 --> RL
+//
+// Get HEAD_SN and SER from Venus-Q since it is not in GHL
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+
+Clear Log();
+clear globals();
+
+// Log-in information:
+
+Include("C:\Design\Scripts\JMP Scripts\GO-DataAnalysis\Manjit\JMP\login.jsl"); 
+
+// Provide Tial IDs and test codes:
+
+::TrialID = "'L922','L923'";
+::TstCode = "'LEEF9H1M'";
+
+
+
+//Get ACC summary data
+SUMMARY = Open Database(
+                "DSN="|| DSN_GHL ||";UID="|| UID_GHL ||";PWD="|| PWD_GHL ||";",
+				"Select * 
+				 FROM `LEE_6400`.CCB_CI_UFO_HD_Array
+				 WHERE HDDtrial in (" || TrialID || ") 
+				 AND TESTCODE in (" || TstCode || ") 
+				 ",
+				"HDD_ACC"	//Table name
+				);
+				
+SUMMARY<<New Column("ACC_TDMR", numeric , continuous, Formula ( (100 * :accHeadTotalLBA) /215468426 ));
+:ACC_TDMR<<delete formula;
+SUMMARY<<New Column("ACC_TDMR_Noati", numeric , continuous, Formula ( (100*AccHeadTotalLbaNoAti) /215468426 ));
+:ACC_TDMR_Noati << delete formula;
+
+SUMMARY << set name("HDD_Raw_"||substitute(TrialID, "'","",",","_" )||"_"||Substitute(TstCode, "'", "",",","_" ));
+
+//Get ADC, TPI & BPI data
+HDD_ADC = Open Database(
+                "DSN="|| DSN_GHL ||";UID="|| UID_GHL ||";PWD="|| PWD_GHL ||";",
+				"Select * 
+				 FROM `LEE_6400`.CCB_CI_UFO_HD_Band_Array
+				 WHERE HDDtrial in (" || TrialID || ") 
+				 AND TESTCODE in (" || TstCode || ") 
+				 ",
+				"HDD_ADC"	//Table name
+				);
+
+// At OD
+HDD_ADC << select where (:Band ==0);
+HDD_ADC_OD = HDD_ADC << subset (Output Table Name("HDD_ADC_OD"));
+HDD_ADC_OD:ADCKBpi << set name("ADCKBpi_OD");
+HDD_ADC_OD:ADCKTpi << set name("ADCKTpi_OD");
+
+SUMMARY << update (
+					with (HDD_ADC_OD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :ADCKBpi_OD, :ADCKTpi_OD  )
+);
+close(HDD_ADC_OD, no save);
+
+// At MD
+HDD_ADC << select where (:Band ==3);
+HDD_ADC_MD = HDD_ADC << subset (Output Table Name("HDD_ADC_MD"));
+HDD_ADC_MD:ADCKBpi << set name("ADCKBpi_MD");
+HDD_ADC_MD:ADCKTpi << set name("ADCKTpi_MD");
+
+SUMMARY << update (
+					with (HDD_ADC_MD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :ADCKBpi_MD, :ADCKTpi_MD  )
+);
+close(HDD_ADC_MD, no save);
+
+// At ID
+HDD_ADC << select where (:Band ==6);
+HDD_ADC_ID = HDD_ADC << subset (Output Table Name("HDD_ADC_ID"));
+HDD_ADC_ID:ADCKBpi << set name("ADCKBpi_ID");
+HDD_ADC_ID:ADCKTpi << set name("ADCKTpi_ID");
+
+SUMMARY << update (
+					with (HDD_ADC_ID),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :ADCKBpi_ID, :ADCKTpi_ID  )
+);
+close(HDD_ADC_ID, no save);
+close(HDD_ADC, no save);
+
+
+//MRW data at MD
+HDD_MRW = Open Database(
+                "DSN="|| DSN_GHL ||";UID="|| UID_GHL ||";PWD="|| PWD_GHL ||";",
+				"Select * 
+				 FROM `LEE_6400`.CCB_CI_MRW
+				 WHERE HDDtrial in (" || TrialID || ") 
+				 AND TESTCODE in (" || TstCode || ")
+				",
+				"HDD_MRW"	//Table name
+				);
+				
+HDD_MRW<<New Column("MRW_nm", numeric , continuous, Formula (MRW * 2.54/450*100 ));
+:MRW_nm<<delete formula;
+HDD_MRW<<New Column("MWW_nm", numeric , continuous, Formula (MWW * 2.54/450*100 ));
+:MWW_nm<<delete formula;
+HDD_MRW << delete columns("MRW", "MWW");
+
+// MRW RU
+// At OD
+HDD_MRW << select where (:BAND ==0 & Substr(:SubQualifier,8,9)=="R0" & :QUALIFIER=="100");
+RU_MRW_OD = HDD_MRW << Subset(Output table name("HDD_MRW_RU_OD"));
+RU_MRW_OD:MRW_nm << set name("MRW_RU_OD");
+RU_MRW_OD:MWW_nm << set name("MWW_RU_OD");
+
+
+SUMMARY << update (
+					with (RU_MRW_OD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :MRW_RU_OD,  :MWW_RU_OD  )
+);
+close(RU_MRW_OD, no save);
+
+// At MD
+HDD_MRW << select where (:BAND ==1 & Substr(:SubQualifier,8,9)=="R0" & :QUALIFIER=="100");
+RU_MRW_MD = HDD_MRW << Subset(Output table name("HDD_MRW_RU_MD"));
+RU_MRW_MD:MRW_nm << set name("MRW_RU_MD");
+RU_MRW_MD:MWW_nm << set name("MWW_RU_MD");
+
+
+SUMMARY << update (
+					with (RU_MRW_MD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :MRW_RU_MD,  :MWW_RU_MD  )
+);
+close(RU_MRW_MD, no save);
+
+// At ID
+HDD_MRW << select where (:BAND ==2 & Substr(:SubQualifier,8,9)=="R0" & :QUALIFIER=="100");
+RU_MRW_ID = HDD_MRW << Subset(Output table name("HDD_MRW_RU_ID"));
+RU_MRW_ID:MRW_nm << set name("MRW_RU_ID");
+RU_MRW_ID:MWW_nm << set name("MWW_RU_ID");
+
+
+SUMMARY << update (
+					with (RU_MRW_ID),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :MRW_RU_ID,  :MWW_RU_ID  )
+);
+close(RU_MRW_ID, no save);
+
+
+
+// MRW RL
+// At OD
+HDD_MRW << select where (:BAND ==0 & Substr(:SubQualifier,8,9)=="R1" & :QUALIFIER=="101");
+RL_MRW_OD = HDD_MRW << Subset(Output table name("HDD_MRW_RL_OD"));
+RL_MRW_OD:MRW_nm << set name("MRW_RL_OD");
+RL_MRW_OD:MWW_nm << set name("MWW_RL_OD");
+
+SUMMARY << update (
+					with (RL_MRW_OD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :MRW_RL_OD,  :MWW_RL_OD  ) 
+);
+
+close(RL_MRW_OD, no save);
+
+// At MD
+HDD_MRW << select where (:BAND ==1 & Substr(:SubQualifier,8,9)=="R1" & :QUALIFIER=="101");
+RL_MRW_MD = HDD_MRW << Subset(Output table name("HDD_MRW_RL_MD"));
+RL_MRW_MD:MRW_nm << set name("MRW_RL_MD");
+RL_MRW_MD:MWW_nm << set name("MWW_RL_MD");
+
+SUMMARY << update (
+					with (RL_MRW_MD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :MRW_RL_MD,  :MWW_RL_MD  ) 
+);
+
+close(RL_MRW_MD, no save);
+
+// At ID
+HDD_MRW << select where (:BAND ==2 & Substr(:SubQualifier,8,9)=="R1" & :QUALIFIER=="101");
+RL_MRW_ID = HDD_MRW << Subset(Output table name("HDD_MRW_RL_ID"));
+RL_MRW_ID:MRW_nm << set name("MRW_RL_ID");
+RL_MRW_ID:MWW_nm << set name("MWW_RL_ID");
+
+SUMMARY << update (
+					with (RL_MRW_ID),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :MRW_RL_ID,  :MWW_RL_ID  ) 
+);
+
+close(RL_MRW_ID, no save);
+close(HDD_MRW, no save);
+
+
+//Add MCW data at OD MD ID
+HDD_MCW = Open Database(
+                "DSN="|| DSN_GHL ||";UID="|| UID_GHL ||";PWD="|| PWD_GHL ||";",
+				"Select * 
+				 From `LEE_6400`.CCB_CI_MCW
+				 Where HDDtrial in (" || TrialID || ") 
+				 AND TESTCODE in (" || TstCode || ") 
+				 AND MFGID_3='0'
+				 
+				",
+				"HDD_MCW"	//Table name
+				);
+HDD_MCW<<New Column("MCW_nm", numeric , continuous, Formula (MCW * 2.54/450*100 ));
+:MCW_nm<<delete formula;
+
+HDD_MCW << select where (:BAND ==0);
+HDD_MCW_OD = HDD_MCW << Subset(Output table name("HDD_MCW_OD"));
+HDD_MCW_OD:MCW_nm << set name("MCW_OD");
+
+SUMMARY << update (
+					with (HDD_MCW_OD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :MCW_OD ) 
+);
+close (HDD_MCW_OD, no save);
+
+HDD_MCW << select where (:BAND ==1);
+HDD_MCW_MD = HDD_MCW << Subset(Output table name("HDD_MCW_MD"));
+HDD_MCW_MD:MCW_nm << set name("MCW_MD");
+
+SUMMARY << update (
+					with (HDD_MCW_MD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :MCW_MD ) 
+);
+close (HDD_MCW_MD, no save);
+
+HDD_MCW << select where (:BAND ==2);
+HDD_MCW_ID = HDD_MCW << Subset(Output table name("HDD_MCW_ID"));
+HDD_MCW_ID:MCW_nm << set name("MCW_ID");
+
+SUMMARY << update (
+					with (HDD_MCW_ID),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :MCW_ID ) 
+);
+close (HDD_MCW_ID, no save);
+close(HDD_MCW, no save);
+
+
+//OW at OD MD ID
+HDD_OW = Open Database(
+                "DSN="|| DSN_GHL ||";UID="|| UID_GHL ||";PWD="|| PWD_GHL ||";",
+				"Select * 
+				 From `LEE_6400`.CCB_CI_OW
+				 Where HDDtrial in (" || TrialID || ") 
+				 AND TESTCODE in (" || TstCode || ") 
+				 AND MFGID_3='0'
+				 AND qualifier='11N'
+				",
+				"HDD_OW"	//Table name
+				);
+HDD_OW << New column("OW", numeric, continuous, formula(:OwValPerp*(-1)));
+:OW << delete formula;
+
+HDD_OW << select where (:BAND ==0);
+HDD_OW_OD = HDD_OW << Subset(Output table name("HDD_OW_OD"));
+HDD_OW_OD:OW << set name("OW_OD");
+
+SUMMARY << update (
+					with (HDD_OW_OD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :OW_OD ) 
+);
+close (HDD_OW_OD, no save);
+
+HDD_OW << select where (:BAND ==1);
+HDD_OW_MD = HDD_OW << Subset(Output table name("HDD_OW_OD"));
+HDD_OW_MD:OW << set name("OW_MD");
+
+SUMMARY << update (
+					with (HDD_OW_MD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :OW_MD ) 
+);
+close (HDD_OW_MD, no save);
+
+HDD_OW << select where (:BAND ==2);
+HDD_OW_ID = HDD_OW << Subset(Output table name("HDD_OW_ID"));
+HDD_OW_ID:OW << set name("OW_ID");
+
+SUMMARY << update (
+					with (HDD_OW_ID),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :OW_ID ) 
+);
+close (HDD_OW_ID, no save);
+close(HDD_OW, no save);
+
+//CTS & DTS, form MD band 39
+HDD_CTS_DTS = Open Database(
+                "DSN="|| DSN_GHL ||";UID="|| UID_GHL ||";PWD="|| PWD_GHL ||";",
+				"SELECT *
+				 FROM `LEE_6400`.CCB_CI_CTSEP
+				 WHERE Qualifier=105 
+				 AND Subqualifier= 'HeadParam'
+				 AND hddtrial in (" || TrialID || ") 
+				 AND testcode in (" || TstCode || ")
+				 
+				",
+				"HDD_CTS_DTS"	//Table name
+				);
+				
+HDD_CTS_DTS << select where ( band==39 );
+HDD_CTS_DTS_MD = HDD_CTS_DTS << subset(Output table name("HDD_CTS_DTS_MD"));
+:CTSnm << set name("CTS_MD");
+:DTSnm << set name("DTS_MD");
+
+SUMMARY << update (
+					with (HDD_CTS_DTS_MD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :CTS_MD, :DTS_MD ) 
+);
+
+close(HDD_CTS_DTS_MD, no save);
+close(HDD_CTS_DTS, no save);
+
+//Resistance data
+HDD_RMR = Open Database(
+                "DSN="|| DSN_GHL ||";UID="|| UID_GHL ||";PWD="|| PWD_GHL ||";",
+				"Select * 
+				 From `LEE_6400`.CCB_CI_RMR
+				 Where HDDtrial in (" || TrialID || ") 
+				 AND TESTCODE in (" || TstCode || ") 
+				 AND QUALIFIER = '10N'
+				",
+				"HDD_RMR"	//Table name
+				);
+HDD_RMR:MaxRMRVal_0<<Set Name("RMR_RU");
+HDD_RMR:MaxRMRVal_1<<Set Name("RMR_RL");
+
+SUMMARY << update (
+					with (HDD_RMR),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :RMR_RU, :RMR_RL ) 
+);
+close(HDD_RMR, no save);
+
+
+//Amplitude Data
+HDD_Amp = Open Database(
+                "DSN="|| DSN_GHL ||";UID="|| UID_GHL ||";PWD="|| PWD_GHL ||";",
+				"SELECT *
+				 FROM `LEE_6400`.CCB_CI_AMP
+				 WHERE HDDtrial in (" || TrialID || ")
+				 AND testcode in (" || TstCode || ")
+				 AND MFGID_3='0'
+				",
+				"HDD_AMPL"	//Table name
+				);
+
+// Amp At RU at OD, MD, ID	
+// RU OD
+HDD_Amp << select where (Substr(:SubQualifier,8,9)=="R0" & band==0 & :QUALIFIER=="100");
+HDD_Amp_RU_OD = HDD_Amp << subset (Output Table Name("HDD_Amp_RU_OD"));
+HDD_Amp_RU_OD:ResolutionAVG << set name("Resolution_RU_OD");
+HDD_Amp_RU_OD:Amplitude1AVG << set name("Amp_2T_RU_OD");
+HDD_Amp_RU_OD:Amplitude2AVG << set name("Amp_10T_RU_OD");
+
+SUMMARY << update (
+					with (HDD_Amp_RU_OD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :Resolution_RU_OD, :Amp_2T_RU_OD, :Amp_10T_RU_OD ) 
+);
+close(HDD_Amp_RU_OD, no save);
+
+// RU MD
+HDD_Amp << select where (Substr(:SubQualifier,8,9)=="R0" & band==1 & :QUALIFIER=="100");
+HDD_Amp_RU_MD = HDD_Amp << subset (Output Table Name("HDD_Amp_RU_MD"));
+HDD_Amp_RU_MD:ResolutionAVG << set name("Resolution_RU_MD");
+HDD_Amp_RU_MD:Amplitude1AVG << set name("Amp_2T_RU_MD");
+HDD_Amp_RU_MD:Amplitude2AVG << set name("Amp_10T_RU_MD");
+
+SUMMARY << update (
+					with (HDD_Amp_RU_MD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :Resolution_RU_MD, :Amp_2T_RU_MD, :Amp_10T_RU_MD ) 
+);
+close(HDD_Amp_RU_MD, no save);
+
+// RU ID
+HDD_Amp << select where (Substr(:SubQualifier,8,9)=="R0" & band==2 & :QUALIFIER=="100");
+HDD_Amp_RU_ID = HDD_Amp << subset (Output Table Name("HDD_Amp_RU_ID"));
+HDD_Amp_RU_ID:ResolutionAVG << set name("Resolution_RU_ID");
+HDD_Amp_RU_ID:Amplitude1AVG << set name("Amp_2T_RU_ID");
+HDD_Amp_RU_ID:Amplitude2AVG << set name("Amp_10T_RU_ID");
+
+SUMMARY << update (
+					with (HDD_Amp_RU_ID),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :Resolution_RU_ID, :Amp_2T_RU_ID, :Amp_10T_RU_ID ) 
+);
+close(HDD_Amp_RU_ID, no save);
+
+// RL OD
+HDD_Amp << select where (Substr(:SubQualifier,8,9)=="R1" & band==0 & :QUALIFIER=="101");
+HDD_Amp_RL_OD = HDD_Amp << subset (Output Table Name("HDD_Amp_RL_OD"));
+HDD_Amp_RL_OD:ResolutionAVG << set name("Resolution_RL_OD");
+HDD_Amp_RL_OD:Amplitude1AVG << set name("Amp_2T_RL_OD");
+HDD_Amp_RL_OD:Amplitude2AVG << set name("Amp_10T_RL_OD");
+
+SUMMARY << update (
+					with (HDD_Amp_RL_OD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :Resolution_RL_OD, :Amp_2T_RL_OD, :Amp_10T_RL_OD ) 
+);
+close(HDD_Amp_RL_OD, no save);
+
+// RL MD
+HDD_Amp << select where (Substr(:SubQualifier,8,9)=="R1" & band==1 & :QUALIFIER=="101");
+HDD_Amp_RL_MD = HDD_Amp << subset (Output Table Name("HDD_Amp_RL_MD"));
+HDD_Amp_RL_MD:ResolutionAVG << set name("Resolution_RL_MD");
+HDD_Amp_RL_MD:Amplitude1AVG << set name("Amp_2T_RL_MD");
+HDD_Amp_RL_MD:Amplitude2AVG << set name("Amp_10T_RL_MD");
+
+SUMMARY << update (
+					with (HDD_Amp_RL_MD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :Resolution_RL_MD, :Amp_2T_RL_MD, :Amp_10T_RL_MD ) 
+);
+close(HDD_Amp_RL_MD, no save);
+
+// RL ID
+HDD_Amp << select where (Substr(:SubQualifier,8,9)=="R1" & band==2 & :QUALIFIER=="101");
+HDD_Amp_RL_ID = HDD_Amp << subset (Output Table Name("HDD_Amp_RL_ID"));
+HDD_Amp_RL_ID:ResolutionAVG << set name("Resolution_RL_ID");
+HDD_Amp_RL_ID:Amplitude1AVG << set name("Amp_2T_RL_ID");
+HDD_Amp_RL_ID:Amplitude2AVG << set name("Amp_10T_RL_ID");
+
+SUMMARY << update (
+					with (HDD_Amp_RL_ID),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :Resolution_RL_ID, :Amp_2T_RL_ID, :Amp_10T_RL_ID ) 
+);
+close(HDD_Amp_RL_ID, no save);
+close(HDD_Amp, no save);
+
+
+//Asymmetry data at OD MD ID
+HDD_Asym = Open Database(
+                "DSN="|| DSN_GHL ||";UID="|| UID_GHL ||";PWD="|| PWD_GHL ||";",
+				"SELECT *
+				 FROM `LEE_6400`.CCB_CI_ASM
+				 WHERE HDDtrial in (" || TrialID || ")
+				 AND testcode in (" || TstCode || ")
+				 AND MFGID_3='0'
+				",
+				"HDD_ASYM"	//Table name
+				);
+
+// RU Asym
+// OD
+HDD_Asym << select where (Substr(:SubQualifier,8,9)=="R0" & band==0 & :QUALIFIER=="100");
+HDD_Asym_RU_OD = HDD_Asym << subset (Output Table Name("HDD_Asym_RU_OD"));
+HDD_Asym_RU_OD:Asymmetry << set name("Asymmetry_RU_OD");
+
+SUMMARY << update (
+					with (HDD_Asym_RU_OD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :Asymmetry_RU_OD ) 
+);
+close(HDD_Asym_RU_OD, no save);
+
+// MD
+HDD_Asym << select where (Substr(:SubQualifier,8,9)=="R0" & band==1 & :QUALIFIER=="100");
+HDD_Asym_RU_MD = HDD_Asym << subset (Output Table Name("HDD_Asym_RU_MD"));
+HDD_Asym_RU_MD:Asymmetry << set name("Asymmetry_RU_MD");
+
+SUMMARY << update (
+					with (HDD_Asym_RU_MD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :Asymmetry_RU_MD ) 
+);
+close(HDD_Asym_RU_MD, no save);
+
+// ID
+HDD_Asym << select where (Substr(:SubQualifier,8,9)=="R0" & band==2 & :QUALIFIER=="100");
+HDD_Asym_RU_ID = HDD_Asym << subset (Output Table Name("HDD_Asym_RU_ID"));
+HDD_Asym_RU_ID:Asymmetry << set name("Asymmetry_RU_ID");
+
+SUMMARY << update (
+					with (HDD_Asym_RU_ID),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :Asymmetry_RU_ID ) 
+);
+close(HDD_Asym_RU_ID, no save);
+
+// RL Asym
+// OD
+HDD_Asym << select where (Substr(:SubQualifier,8,9)=="R1" & band==0 & :QUALIFIER=="101");
+HDD_Asym_RL_OD = HDD_Asym << subset (Output Table Name("HDD_Asym_RL_OD"));
+HDD_Asym_RL_OD:Asymmetry << set name("Asymmetry_RL_OD");
+
+SUMMARY << update (
+					with (HDD_Asym_RL_OD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :Asymmetry_RL_OD ) 
+);
+close(HDD_Asym_RL_OD, no save);
+
+// MD
+HDD_Asym << select where (Substr(:SubQualifier,8,9)=="R1" & band==1 & :QUALIFIER=="101");
+HDD_Asym_RL_MD = HDD_Asym << subset (Output Table Name("HDD_Asym_RL_MD"));
+HDD_Asym_RL_MD:Asymmetry << set name("Asymmetry_RL_MD");
+
+SUMMARY << update (
+					with (HDD_Asym_RL_MD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :Asymmetry_RL_MD ) 
+);
+close(HDD_Asym_RL_MD, no save);
+
+// ID
+HDD_Asym << select where (Substr(:SubQualifier,8,9)=="R1" & band==2 & :QUALIFIER=="101");
+HDD_Asym_RL_ID = HDD_Asym << subset (Output Table Name("HDD_Asym_RL_ID"));
+HDD_Asym_RL_ID:Asymmetry << set name("Asymmetry_RL_ID");
+
+SUMMARY << update (
+					with (HDD_Asym_RL_ID),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :Asymmetry_RL_ID ) 
+);
+close(HDD_Asym_RL_ID, no save);
+close(HDD_Asym, no save);
+
+
+//SystemSNR data RU RL at OD MD ID
+//
+HDD_SNR = Open Database(
+                "DSN="|| DSN_GHL ||";UID="|| UID_GHL ||";PWD="|| PWD_GHL ||";",
+				"SELECT *
+				 FROM `LEE_6400`.CCB_CI_RWIP
+				 WHERE HDDtrial in (" || TrialID || ")
+				 AND testcode in (" || TstCode || ")
+				 AND MFGID_3='0'
+				",
+				"HDD_SNR"	//Table name
+				);
+
+// RU SNR
+// OD
+HDD_SNR << select where (Substr(:SubQualifier,8,9)=="R0" & band==0 & :QUALIFIER=="100");
+HDD_SNR_RU_OD = HDD_SNR << subset (Output Table Name("HDD_SNR_RU_OD"));
+HDD_SNR_RU_OD:noiseTotal << set name("noiseTotal_RU_OD");
+HDD_SNR_RU_OD:noiseSystem << set name("noiseSystem_RU_OD");
+HDD_SNR_RU_OD:noiseMedia << set name("noiseMedia_RU_OD");
+HDD_SNR_RU_OD:snrTotal << set name("snrTotal_RU_OD");
+HDD_SNR_RU_OD:snrSystem << set name("snrSystem_RU_OD");
+HDD_SNR_RU_OD:snrMedia << set name("snrMedia_RU_OD");
+HDD_SNR_RU_OD:signalPower << set name("signalPower_RU_OD");
+
+SUMMARY << update (
+					with (HDD_SNR_RU_OD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :noiseTotal_RU_OD, :noiseSystem_RU_OD, :noiseMedia_RU_OD, :snrTotal_RU_OD,
+					:snrSystem_RU_OD, :snrMedia_RU_OD, :signalPower_RU_OD ) 
+);
+close(HDD_SNR_RU_OD, no save);
+
+// MD
+HDD_SNR << select where (Substr(:SubQualifier,8,9)=="R0" & band==1 & :QUALIFIER=="100");
+HDD_SNR_RU_MD = HDD_SNR << subset (Output Table Name("HDD_SNR_RU_MD"));
+HDD_SNR_RU_MD:noiseTotal << set name("noiseTotal_RU_MD");
+HDD_SNR_RU_MD:noiseSystem << set name("noiseSystem_RU_MD");
+HDD_SNR_RU_MD:noiseMedia << set name("noiseMedia_RU_MD");
+HDD_SNR_RU_MD:snrTotal << set name("snrTotal_RU_MD");
+HDD_SNR_RU_MD:snrSystem << set name("snrSystem_RU_MD");
+HDD_SNR_RU_MD:snrMedia << set name("snrMedia_RU_MD");
+HDD_SNR_RU_MD:signalPower << set name("signalPower_RU_MD");
+
+SUMMARY << update (
+					with (HDD_SNR_RU_MD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :noiseTotal_RU_MD, :noiseSystem_RU_MD, :noiseMedia_RU_MD, :snrTotal_RU_MD,
+					:snrSystem_RU_MD, :snrMedia_RU_MD, :signalPower_RU_MD ) 
+);
+close(HDD_SNR_RU_MD, no save);
+
+// ID
+HDD_SNR << select where (Substr(:SubQualifier,8,9)=="R0" & band==2 & :QUALIFIER=="100");
+HDD_SNR_RU_ID = HDD_SNR << subset (Output Table Name("HDD_SNR_RU_ID"));
+HDD_SNR_RU_ID:noiseTotal << set name("noiseTotal_RU_ID");
+HDD_SNR_RU_ID:noiseSystem << set name("noiseSystem_RU_ID");
+HDD_SNR_RU_ID:noiseMedia << set name("noiseMedia_RU_ID");
+HDD_SNR_RU_ID:snrTotal << set name("snrTotal_RU_ID");
+HDD_SNR_RU_ID:snrSystem << set name("snrSystem_RU_ID");
+HDD_SNR_RU_ID:snrMedia << set name("snrMedia_RU_ID");
+HDD_SNR_RU_ID:signalPower << set name("signalPower_RU_ID");
+
+SUMMARY << update (
+					with (HDD_SNR_RU_ID),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :noiseTotal_RU_ID, :noiseSystem_RU_ID, :noiseMedia_RU_ID, :snrTotal_RU_ID,
+					:snrSystem_RU_ID, :snrMedia_RU_ID, :signalPower_RU_ID ) 
+);
+close(HDD_SNR_RU_ID, no save);
+
+// RL SNR
+// OD
+HDD_SNR << select where (Substr(:SubQualifier,8,9)=="R1" & band==0 & :QUALIFIER=="101");
+HDD_SNR_RL_OD = HDD_SNR << subset (Output Table Name("HDD_SNR_RL_OD"));
+HDD_SNR_RL_OD:noiseTotal << set name("noiseTotal_RL_OD");
+HDD_SNR_RL_OD:noiseSystem << set name("noiseSystem_RL_OD");
+HDD_SNR_RL_OD:noiseMedia << set name("noiseMedia_RL_OD");
+HDD_SNR_RL_OD:snrTotal << set name("snrTotal_RL_OD");
+HDD_SNR_RL_OD:snrSystem << set name("snrSystem_RL_OD");
+HDD_SNR_RL_OD:snrMedia << set name("snrMedia_RL_OD");
+HDD_SNR_RL_OD:signalPower << set name("signalPower_RL_OD");
+
+SUMMARY << update (
+					with (HDD_SNR_RL_OD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :noiseTotal_RL_OD, :noiseSystem_RL_OD, :noiseMedia_RL_OD, :snrTotal_RL_OD,
+					:snrSystem_RL_OD, :snrMedia_RL_OD, :signalPower_RL_OD ) 
+);
+close(HDD_SNR_RL_OD, no save);
+
+// MD
+HDD_SNR << select where (Substr(:SubQualifier,8,9)=="R1" & band==1 & :QUALIFIER=="101");
+HDD_SNR_RL_MD = HDD_SNR << subset (Output Table Name("HDD_SNR_RL_MD"));
+HDD_SNR_RL_MD:noiseTotal << set name("noiseTotal_RL_MD");
+HDD_SNR_RL_MD:noiseSystem << set name("noiseSystem_RL_MD");
+HDD_SNR_RL_MD:noiseMedia << set name("noiseMedia_RL_MD");
+HDD_SNR_RL_MD:snrTotal << set name("snrTotal_RL_MD");
+HDD_SNR_RL_MD:snrSystem << set name("snrSystem_RL_MD");
+HDD_SNR_RL_MD:snrMedia << set name("snrMedia_RL_MD");
+HDD_SNR_RL_MD:signalPower << set name("signalPower_RL_MD");
+
+SUMMARY << update (
+					with (HDD_SNR_RL_MD),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :noiseTotal_RL_MD, :noiseSystem_RL_MD, :noiseMedia_RL_MD, :snrTotal_RL_MD,
+					:snrSystem_RL_MD, :snrMedia_RL_MD, :signalPower_RL_MD ) 
+);
+close(HDD_SNR_RL_MD, no save);
+
+// ID
+HDD_SNR << select where (Substr(:SubQualifier,8,9)=="R1" & band==2 & :QUALIFIER=="101");
+HDD_SNR_RL_ID = HDD_SNR << subset (Output Table Name("HDD_SNR_RL_ID"));
+HDD_SNR_RL_ID:noiseTotal << set name("noiseTotal_RL_ID");
+HDD_SNR_RL_ID:noiseSystem << set name("noiseSystem_RL_ID");
+HDD_SNR_RL_ID:noiseMedia << set name("noiseMedia_RL_ID");
+HDD_SNR_RL_ID:snrTotal << set name("snrTotal_RL_ID");
+HDD_SNR_RL_ID:snrSystem << set name("snrSystem_RL_ID");
+HDD_SNR_RL_ID:snrMedia << set name("snrMedia_RL_ID");
+HDD_SNR_RL_ID:signalPower << set name("signalPower_RL_ID");
+
+SUMMARY << update (
+					with (HDD_SNR_RL_ID),
+					Match columns(:hddtrial=:hddtrial, :hddsn=:hddsn, :LHD=:LHD),
+					Add Columns from Update table( :noiseTotal_RL_ID, :noiseSystem_RL_ID, :noiseMedia_RL_ID, :snrTotal_RL_ID,
+					:snrSystem_RL_ID, :snrMedia_RL_ID, :signalPower_RL_ID ) 
+);
+close(HDD_SNR_RL_ID, no save);
+close(HDD_SNR, no save);
+
+
+SUMMARY << Move Selected Columns({"HDDTRIAL","HDDSN", "LHD"}, To First );
+
+// Add delta columns: RU - RL
+
+SUMMARY << New Column("snrSystem_Delta_OD", numeric , continuous, Formula (:snrSystem_RU_OD - :snrSystem_RL_OD ));
+SUMMARY << New Column("snrSystem_Delta_MD", numeric , continuous, Formula (:snrSystem_RU_MD - :snrSystem_RL_MD ));
+SUMMARY << New Column("snrSystem_Delta_ID", numeric , continuous, Formula (:snrSystem_RU_ID - :snrSystem_RL_ID ));
+
+
+// HI data in separate table
+
+HDD_HI = Open Database(
+                "DSN="|| DSN_GHL ||";UID="|| UID_GHL ||";PWD="|| PWD_GHL ||";",
+				"Select * 
+				 FROM `LEE_6400`.CCB_CI_HI
+				 WHERE HDDtrial in (" || TrialID || ") 
+				 AND TESTCODE in (" || TstCode || ") 
+				 AND MFGID_3='0'
+				 ",
+				"HDD_HI"	//Table name
+				);
+				
+HDD_HI << New column("Reader", character, nominal, formula(Match(:QUALIFIER, "306", If(Right(:SubQualifier, 2) == "R0", "Upper"), 
+														 "307", If(Right(:SubQualifier, 2) == "R1", "Lower"), 
+														 "308", If(Right(:SubQualifier, 4) == "R0R1", "TDMR"))));
+														 
+HDD_HI << New column ("Zone", character, nominal, formula(Match(:BAND, 0, "OD", 1, "MD", 2, "ID")));
+
+HDD_HI << select where (Is Missing (:Reader)) << delete rows;
+HDD_HI << Move Selected Columns({"HDDTRIAL","HDDSN", "LHD","Reader","Zone"}, To First );
+
+HDD_HI << set name("HDD_HI_raw_"||substitute(TrialID, "'","",",","_" )||"_"||Substitute(TstCode, "'", "",",","_" ));

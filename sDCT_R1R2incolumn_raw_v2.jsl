@@ -1,0 +1,68 @@
+
+
+////////////////////////////////////////////////////
+//
+// Script to collect sDCT data for TDMR
+// Upper and lower readers are in different columns
+// to map sDCT data with quasi and HDD data
+//
+// Version 1.0
+// Author: Manjit P.
+// Date  : 05/17/2018
+// Revision History
+// No. When		 Who		What
+//
+////////////////////////////////////////////////////
+
+
+Clear Log();
+clear Globals();
+Include("C:\Design\Scripts\JMP Scripts\GO-DataAnalysis\Manjit\JMP\login.jsl");
+
+
+// Change date and waferID
+
+TooltsStart = "'2018-08-01-00.00.00.000000'";
+TooltsEnd 	= "'2018-09-10-00.00.00.000000'";
+
+wafer_name = "290448,290513,290512";
+
+Exp = "359254";
+
+//impala3 = "DSN=BDP3-Impala-Prod;";    // BDP database connection
+
+DB2 = "DSN="||DSN_sld||";UID="||UID_sld||";PWD="||PWD_sld||";";  // for DB2
+
+
+sDCT_table = open database(DB2,
+					"
+	 SELECT J.SLIDERSN, EXP.EWR, description, J.E_REV, LEFT ( J.TOOL , 7 ) AS TESTER, DATE ( J.TOOLTS ) AS MDATE,
+     HOUR ( J.TOOLTS ) AS MTIME, J.BIN, J.WAFERNUM, J.CLASS, J.CLASSNUM, J.DISK, J.MEMS ,J.COLNUM, J.ROWNUM,
+     J.HTNUM,  J.DETCLASS, J.JOBNUM, J.DETCODE, J.END_PT, 
+     J.CARRIAGE, RIGHT ( J.CARTRIDGE , 4 ) AS JIG, J.EXPERIMENT, J.PRODUCT,
+     J.DETCLASS, J.E_REV, J.FABEC, J.FROMHOLDER, J.FROMPOSX, J.FROMPOSY,
+     J.FROMHOLDERTYPE, J.OPNUM, J.TAPVERSION, J.T_VER, 
+	 J.TOOLTS 
+
+	 FROM SLDR.DECODET J LEFT OUTER JOIN SLDR.EXPERIMENT EXP ON EXP.EXPERIMENT = J.EXPERIMENT
+	 WHERE (J.OP = '735319 SLIDER DCT TESTING')
+     AND (J.WAFERNUM IN("||wafer_name||"))
+     AND (J.EXPERIMENT IN ("||Exp||"))
+
+					",
+					"sDCT_raw"	
+				);
+				
+sDCT_table_T = sDCT_table << Transpose(
+									columns( :PARMVAL ),
+									By( :WAFERNUM, :JOBNUM, :ROWNUM, :COLNUM, :SLIDERSN, :TOOL, :TOOLTS ),
+									Label( :PARMNAME ),
+									Output Table( "DCT_BDP_raw" )
+									
+	
+);
+
+sDCT_table_T << Delete columns("Label");
+sDCT_table_T << set name("DCT_BDP_raw_"||substitute(wafer_name,",","_", "(", "", ")", "", "'", "" ));
+
+close (sDCT_table, no save);

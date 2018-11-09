@@ -1,0 +1,433 @@
+﻿// ----------------------------------------------------------------------------
+//
+// Script to create TDMR DesignMatrix
+// 
+// JMP 12
+// TDMR Design Matrix 
+// Version 1.0
+// Author: Manjit P.
+// Date  : 01/23/2018
+// Revision History
+// No. When		 		Who				What
+// 1
+// 2
+// 3			
+//
+//-----------------------------------------------------------------------------
+
+
+Clear Log();
+clear Globals();
+Include("C:\Design\Scripts\GO-DataAnalysis\Manjit\JMP\login.jsl");
+
+coordDt = open("C:\tdmr\TDMR_A4_Scripts\PearlTW_CBF_3cell.jmp");
+
+wafer_list ="291034,291035";
+// pull chimp, dvh11 and verity data from BDP for a set of wafers291034,
+
+impala3 = "DSN=BDP3-Impala-Prod;";
+
+sqlchimp = "
+			SELECT * FROM WTOOLDET.CHIMP A
+			WHERE A.WAFERNUM in ("||wafer_list||")  
+			and A.op = '3557' 
+			and A.ROWNUM > 0
+			";
+
+
+sqldvh = "
+		SELECT * FROM WTOOLDET.DVH11 B  
+		WHERE B.WAFERNUM in ("||wafer_list||")  
+		and B.op = '2639'
+         ";
+                                       
+
+sqlverity = "
+			SELECT * FROM WTOOLDET.VERITYSEM C  
+			WHERE C.WAFERNUM in ("||wafer_list||")  
+			AND C.FEATURE != 'IMAGE' 
+			AND C.LASTVIEW = 'Y'
+			";
+   
+chimp_db2_dt = Open Database( impala3, sqlchimp, "chimpRawData" );
+dtdvh = Open Database( impala3, sqldvh, "dvhRawData" );
+verityRawDt = Open Database( impala3, sqlverity, "verityRawData" );
+
+
+// delete bad measurements in chimp data
+
+Current Data Table(chimp_db2_dt);
+        chimp_db2_dt << Select All Rows;
+        chimp_db2_dt << Invert Row Selection;
+        chimp_db2_dt << Clear Column Selection;
+
+        chimp_db2_dt << Select Where((:ROWNUM==0) );
+        chimp_db2_dt << delete rows;         
+
+
+// Select elements only and Transpose data to chimp_dt 
+
+chimp_db2_dt << Select All Rows;
+chimp_db2_dt << Invert Row Selection;
+chimp_db2_dt << Clear Column Selection;
+chimp_db2_dt << Select Where(((Substr(:PARMNAME,1,4)=="RMIN")|(Substr(:PARMNAME,1,4)=="RMAX"))&(:PARMNAME!="RMAXFA"));
+chimp_dt_temp = chimp_db2_dt<<Subset(output table name("chimp_dt_temp"));
+
+
+chimp_dt=chimp_dt_temp << Transpose(columns(:COL01, :COL02, :COL03, :COL04, :COL05, :COL06, :COL07, :COL08, :COL09, :COL10, :COL11, :COL12, :COL13, :COL14, :COL15, :COL16, :COL17, :COL18, :COL19, :COL20, :COL21, :COL22, :COL23, :COL24, :COL25, :COL26, :COL27, :COL28, :COL29, :COL30, :COL31, :COL32, :COL33, :COL34, :COL35, :COL36, :COL37, :COL38, :COL39, :COL40, :COL41, :COL42, :COL43, :COL44, :COL45, :COL46, :COL47, :COL48, :COL49, :COL50, :COL51, :COL52, :COL53, :COL54, :COL55, :COL56, :COL57, :COL58, :COL59, :COL60), 
+        	By(:WAFERNUM, :PROCESSDATE, :OP, :HTNUM, :EC, :BATCH, :ROWNUM, :COLNUM, :TESTID,:PARMNAME), 
+        	);
+
+chimp_dt:COLNUM<<Set Formula(Num(Substr(chimp_dt:Label, 4, 2))); 
+chimp_dt:Row 1 <<Set Name("Value");
+
+// chimp_dt elements
+// Add 
+//  1) upper and lower reader  << assumes last letter of parm is U or L
+//  2) element SH target       << hard code element sh by column 
+//  3) tw group, physical layout
+
+Current Data Table(chimp_dt);
+chimp_dt<< Select Where((chimp_dt:Value <=-100));
+chimp_dt<< delete rows;
+chimp_dt<< New Column( "reader",	Character,    Formula(Right(:PARMNAME, 1))	);
+
+chimp_dt<< Select Where((:reader!="U")&(:reader!="L"));
+chimp_dt<< delete rows;
+
+chimp_dt<< New Column( "element_sh(um)",  Formula(Match(:COLNUM, 8, 0.25, 38, 0.25, 18, 0.5, 48, 0.5, 3))	);
+chimp_dt<< New Column( "param",	  Formula(Substr(:PARMNAME,1,4))	);
+chimp_dt<< New Column( "1/element_sh(um)",	  Formula(1 / :Name("element_sh(um)"))	);
+
+chimp_dt << Update(
+        	With(coordDt), 
+        	Match Columns( :ROWNUM = :Row ),
+        	Add Columns from Update table( :tw group, :Quad, :row_y, :col_x )
+                );
+
+
+// chimp_final (this is the final table for A4 elements)
+// Add 
+chimp_final=chimp_dt<< Split(
+					Split By( :param ),
+					Split( :Value ),
+					Group(
+						:WAFERNUM,
+						:PROCESSDATE,
+						:OP,
+						:HTNUM,
+						:EC,
+						:BATCH,
+						:ROWNUM,
+						:COLNUM,:Quad,:row_y,:col_x,:tw group,
+						:TESTID,
+						:reader,
+						:Name( "element_sh(um)" ),
+						:Name( "1/element_sh(um)" )
+					),
+					Remaining Columns( Drop All ),Output Table( "chimp_final" ),
+				);
+
+chimp_final << New Column( "delt_R",  Formula(:RMAX - :RMIN));
+
+
+// Only keep N3 and V2R dedicated row measurements for sheet resistance in dvh11 data 
+// Join with chimp_final table
+
+Current Data Table(dtdvh);
+dtdvh<< Select Where(((:DEVICE=="N3")|(:DEVICE=="V2R"))&(:PARM=="RMin"));
+            dtdvh<< Invert Row Selection;
+            dtdvh<< delete rows; 
+            dtdvh<< New Column( "reader", Character,    Formula(Match(:DEVICE, "N3", "L", "U"))	);
+
+dtdvhsum=dtdvh<< Summary(
+    	Group( :DEVICE, :PARM, :reader, :WAFERNUM, :QUAD ),
+    	Median( :VALUE ),
+    	output table name( "dtdvhsum" )
+    );
+
+
+chimp_final << Update(
+    	With( dtdvhsum ),
+    	Match Columns( :WAFERNUM = :WAFERNUM, :reader = :reader,:quad=:QUAD ),
+    	Add Columns from Update table( :Name( "Median(VALUE)" ) )
+    );
+
+chimp_final:Name("Median(VALUE)") <<Set Name("Rs_sq0");
+chimp_final<< New Column( "Rs_sq",  Formula(Match(:reader, "U", :Rs_sq0 / 10, :Rs_sq0 / 29))	);  //sheet resistance
+chimp_final<< New Column( "fit_x",  Formula(:Rs_sq * LnZ(3 / :Name("element_sh(um)"))*0.27+:Rmin));     // micro mag modeling function
+chimp_final:delt_R << delete formula;
+chimp_final:fit_x << delete formula;
+
+
+/////////////////
+// Remove Outliers 
+// any measurement above 99.9%
+
+
+
+lstcol={};
+InsertInto(lstcol,Column(chimp_final,"delt_R"));
+InsertInto(lstcol,Column(chimp_final,"fit_x"));
+
+
+chimp_final=data table("chimp_final");
+Try(        mm = Multivariate( Y(Eval(lstcol)  ),
+		Estimation Method( "Row-wise" ),
+		Scatterplot Matrix(
+		Density Ellipses( 1 ),
+		Shaded Ellipses( 0 ),
+		Ellipse Color( 3 )),
+		Set α Level( 0.0001 ));
+		
+        mm << Mahalanobis Distances( 1 , Save Outlier Distances);
+        mm << Close Window;
+        nc = NCOL(chimp_final);
+        Column(nc) << Set Name("Mahal");        
+
+        // find 99.9th percentile
+        outlier_td = chimp_final << Summary( Quantiles( 99.9, :Mahal), statistics column name format( "column" ), Link to original data table( 0 ), Output Table( "outlier_" ));
+        outlier_ll = Column(outlier_td,2)[1];
+        close(outlier_td, "no save");
+
+        Current Data Table(chimp_final);
+            chimp_final<< Select All Rows;
+            chimp_final << Invert Row Selection;
+            chimp_final<< Clear Column Selection;
+            chimp_final<< Select Where(:Mahal > outlier_ll) << Exclude  << Hide
+            
+            ,
+            
+        Current Data Table(chimp_final);
+            chimp_final<< Select All Rows;
+            chimp_final << Invert Row Selection;
+            chimp_final<< Clear Column Selection;
+            chimp_final<< Select Where(:delt_R > 150 || :fit_x > 150) << Exclude  << Hide);
+            
+
+
+
+////////////////////////
+// Find fixed Lead Resistance value
+// Linear fit of deltaR vs Rmin + Rlead(sh dependent)
+// fit by wafer, tw, reader, quad
+
+
+        fit1=chimp_final <<Bivariate(Y( :delt_R ),  X( :fit_x  ), By( :WAFERNUM, :tw group, :reader,:quad ), Fit Line( {Line Color( "Red" )} ) );
+        pr = fit1 << report;
+        
+        Try(dt3_1=pr[1][Table Box(1)]<<MakeCombinedDataTable);  // save fit values
+        Try(dt3_2=pr[1][Table Box(2)]<<MakeCombinedDataTable);  // save fit values
+        Try(dt3_3=pr[1][Table Box(3)]<<MakeCombinedDataTable);  // save fit values
+        Try(dt3_4=pr[1][Table Box(4)]<<MakeCombinedDataTable);  // save fit values
+        Try(dt3_5=pr[1][Table Box(5)]<<MakeCombinedDataTable);  // save fit values
+        
+        dt3_1_exists = 1;
+        dt3_2_exists = 1;
+        dt3_3_exists = 1;
+        dt3_4_exists = 1;
+        dt3_5_exists = 1;
+
+        dt3_1_term = 1;
+        dt3_2_term = 1;
+        dt3_3_term = 1;
+        dt3_4_term = 1;
+        dt3_5_term = 1;
+
+        Try(Is Scriptable(dt3_1), dt3_1_exists = 0);
+        Try(Is Scriptable(dt3_2), dt3_2_exists = 0);
+        Try(Is Scriptable(dt3_3), dt3_3_exists = 0);
+        Try(Is Scriptable(dt3_4), dt3_4_exists = 0);
+        Try(Is Scriptable(dt3_5), dt3_5_exists = 0);
+
+        Try(Column(dt3_1,"term"), dt3_1_term = 0);
+        Try(Column(dt3_2,"term"), dt3_2_term = 0);
+        Try(Column(dt3_3,"term"), dt3_3_term = 0);
+        Try(Column(dt3_4,"term"), dt3_4_term = 0);
+        Try(Column(dt3_5,"term"), dt3_5_term = 0);
+
+        if(dt3_1_term == 0 & dt3_1_exists == 1, close(dt3_1, "no save"));
+        if(dt3_2_term == 0 & dt3_2_exists == 1, close(dt3_2, "no save"));
+        if(dt3_3_term == 0 & dt3_3_exists == 1, close(dt3_3, "no save"));
+        if(dt3_4_term == 0 & dt3_4_exists == 1, close(dt3_4, "no save"));
+        if(dt3_5_term == 0 & dt3_5_exists == 1, close(dt3_5, "no save"));
+
+        if(dt3_1_term == 1, dt3 = dt3_1, dt3_2_term == 1, dt3 = dt3_2, dt3_3_term == 1, dt3 = dt3_3, dt3_4_term == 1, dt3 = dt3_4, dt3_5_term == 1, dt3 = dt3_5); 
+
+
+        
+        dt3 << Set Name("sum");
+        dt4=dt3 << Split(
+        	Split By( :Term ),
+        	Split( :Estimate ),
+        	Group( :Quad, :reader, :tw group, :WAFERNUM ),
+        	Output Table( "temp" ),
+        	Remaining Columns( Drop All )
+        );
+
+        dt4<< New Column( "RL_const_part",  Formula(0 - :Intercept / :fit_x));
+        dt4:WAFERNUM<< data type(numeric);
+        dt4:Quad<< data type(numeric);
+
+        chimp_final << Update(
+        	With( dt4 ),
+        	Match Columns(
+        		:WAFERNUM = :WAFERNUM,
+        		:Quad = :Quad,
+        		:tw group = :tw group,
+        		:reader = :reader
+        	),
+        	Add Columns from Update table( :RL_const_part )
+        );
+        
+ chimp_final<< New Column( "Rlead",  Formula(:Rs_sq * LnZ(3 / :Name("element_sh(um)"))*0.27+:RL_const_part));
+ chimp_final<< New Column( "tmr",    Formula(:delt_R/(:Rmin-:Rlead)*100)	);
+ 
+ 
+////////////////////////
+// Use verity data for RA calculations
+// sum1Dt for K5
+// sum2Dt for K3
+
+Current Data Table(verityRawDt);
+
+// K3F trilayer: 9213, K3F CHM:2213
+// R3F trilayer: 9822, R3F CHM: 1822
+
+// 20180724 start add new verity ops 
+
+For Each Row(Selected(Rowstate())=(
+                                    (EQUAL(Trim(:OP),"1717")& EQUAL(substr(:FEATURE,1,3),"K5F"))|
+                                    (EQUAL(Trim(:OP),"859")& EQUAL(substr(:FEATURE,1,3),"K5F"))|               //this is for R5F
+
+                                    (EQUAL(Trim(:OP),"1822")& EQUAL(substr(:FEATURE,1,3),"R3F"))|              // acm 20180724 arley added this op and feature  
+                                    (EQUAL(Trim(:OP),"2213")& EQUAL(substr(:FEATURE,1,3),"K3F"))|              // acm 20180724 arley added this op and feature   
+                                    (EQUAL(Trim(:OP),"9213")& EQUAL(substr(:FEATURE,1,3),"K3F"))|
+                                    (EQUAL(Trim(:OP),"9822")& EQUAL(substr(:FEATURE,1,3),"R3F"))                 // this is R3F 
+                                    ));
+//(EQUAL(Trim(:OP),"9213")& EQUAL(substr(:FEATURE,1,3),"K3F"))|
+//(EQUAL(Trim(:OP),"9822")& EQUAL(substr(:FEATURE,1,3),"R3F"))
+
+vK5Dt = verityRawDt<<Subset(output table name("Verity_K35TW"));
+vK5Dt = data table("Verity_K35TW");
+
+vK5Dt<< Update(
+        With( Data Table( "PearlTW_CBF_3cell" ) ),
+        Match Columns( :ROW = :row, :COLUMN = :col )
+);
+// acm 20180724 
+//vK5Dt<< New Column( "reader",character,         Formula(If(:OP == "859" | :OP == "9822", "L", If(:OP == "1717" | :OP == "9213", "U", .))));
+
+vK5Dt<< New Column( "reader",character,   Formula(If(:OP == "859" | :OP == "9822" | :OP == "1822", "L", If(:OP == "1717" | :OP == "9213" | :OP == "2213", "U", .))));
+vK5Dt<< New Column( "TW_SH",character,    Formula(Match(Substr(:TARGET, 2, 1), "3", "SH", "5", "TW", .)));
+vK5Dt<< New Column( "SH_target",          Formula(  Match(:COLUMN, 8, 0.25, 38, 0.25, 18, 0.5, 48, 0.5,  14, 0.75, 44, 0.75, 9, 0.75, 19, 0.75,  29, 0.75, 39, 0.75, 49, 0.75,  59, 0.75, 3)));
+
+vK5Dt<<Select where((:CDBOT>0)&(:CDBOT<5000)&(trim(:LASTVIEW)=="Y"));
+vK5Dt<< Invert Row Selection;
+vK5Dt<< Delete rows;
+
+// 20180724 end add new verity ops 
+
+
+
+vK5Dt<<Select where((:TW_SH=="TW")&(:CDBOT<50));
+vK5Dt_joint2 = vK5Dt<<Subset(output table name("Verity-K5TW_twgroup"));
+
+Current Data Table(vK5Dt_joint2);
+sum1Dt=vK5Dt_joint2 << Summary(
+	Group( :WAFERNUM, :reader,  :tw group),
+	Median( :CDBOT ),
+	Mean( :CDBOT ),
+	std Dev( :CDBOT ),
+	Link to original data table( 0 ),
+	Output Table Name("TW_final_verity_sum"));
+
+vK5Dt<<Select where((:TW_SH=="SH"));
+vK5Dt_joint3 = vK5Dt<<Subset(output table name("Verity-element_SH"));
+Current Data Table(vK5Dt_joint3);
+sum2Dt=vK5Dt_joint3 << Summary(
+	Group( :WAFERNUM, :reader, :TW_SH,:TARGET, :FEATURE, :tw group,:SH_target, :Quad),
+	Median( :CDBOT ),
+	Mean( :CDBOT ),
+	std Dev( :CDBOT ),
+	Link to original data table( 0 ),
+	Output Table Name("elem_SH_final_verity_sum"));
+
+Current Data Table(chimp_final);
+chimp_final << Update(
+        	With( sum1Dt ),
+        	Match Columns(
+        		:WAFERNUM = :WAFERNUM,
+        		:reader = :reader,
+        		:tw group = :tw group
+        	),
+        	Add Columns from Update table( :Name( "Median(CDBOT)" ) )
+        );
+	column ("Median(CDBOT)") <<Set Name("K5F");
+        
+chimp_final << Update(
+        	With( sum2Dt ),
+        	Match Columns(
+        		:WAFERNUM = :WAFERNUM,
+        		:reader = :reader,
+        		:Name( "element_sh(um)" ) = :SH_target,
+        		:Quad = :Quad
+        	),
+        		Add Columns from Update table( :Name( "Median(CDBOT)" ) )
+
+        );
+	column ("Median(CDBOT)") <<Set Name("K3F");
+	
+	
+Current Data Table(chimp_final);
+chimp_final<< New Column( "K5F_",    Formula(:K5F + 10)	);
+chimp_final<< New Column( "ra",	  Formula(((:RMIN - :Rlead) * :K5F_ * :K3F) / 10 ^ 6)	);
+chimp_final<< New Column( "rmin_rlead",	  Formula(((:RMIN - :Rlead) *1) /1)	);
+chimp_final<< Select Where(((:tmr>0)&(:tmr<140)&(:ra<1)&(:Rlead>0)));
+chimp_final<< Invert Row Selection;
+chimp_final<< Exclude;
+chimp_final<< Hide;
+
+column ("WAFERNUM") <<Set Name("waf");
+column ("element_sh(um)") <<Set Name("elem_sh");
+
+// Create the design matrix file
+
+dt_sum=chimp_final<< Summary(
+					Group( :waf, :reader, :tw group, :elem_sh ),
+					Mean( :Rlead ),
+					Mean( :tmr ),
+					Mean( :K3F ),
+					Mean( :ra ),
+					Mean( :rmin_rlead ));
+
+dt_sum<< New Column("EXP",character);
+dt_sum<< Move Selected Columns({"EXP"}, To First);
+dt_sum<< Select Where(:elem_sh==0.25);
+dt_sum1 = dt_sum << Subset(selected Rows, Output Table Name("_DesignMatrix")); 
+dt_sum1<< New Column("tw",Formula(Match(:tw group, "TW1", "narr", "TW2", "mid", "TW3", "wide")),evalformula);
+dt_sum1<< New Column("reader2",Formula(Match(:reader, "L", "Lower", "U", "Upper")),evalformula);
+:reader2 << Delete Formula;
+dt_sum1 << Delete Columns("reader");
+Column("reader2") << Set Name ("reader");
+dt_sum1 << Move Selected Columns({"reader"}, After(“waf”));
+Column("tw group")<< Set Name("tw_group");
+
+// Close temp data files
+
+close (dt_sum, no save );
+close (sum2Dt, no save );
+close (sum1Dt, no save );
+close (vK5Dt_joint3, no save);
+close (vK5Dt_joint2, no save);
+close (vK5Dt, no save);
+close (dt4, no save);
+close (dt3, no save);
+close (chimp_dt, no save);
+close (dtdvhsum, no save);
+close (chimp_dt_temp, no save);
+close (verityRawDt, no save);
+close (dtdvh, no save);
+close (chimp_db2_dt, no save);
+close (coordDt, no save);
+pr << close window;

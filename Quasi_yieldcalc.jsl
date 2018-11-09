@@ -1,0 +1,116 @@
+
+clear log();
+dt = current data table();
+
+// Add Kink QSNR params
+
+dt << New Column("Kink_QSNR", Formula(20 * Log10(:Kink Amp / :ADN Sig_N), evalformula));
+dt << New Column("Kink_QSNR2", Formula(20 * Log10(:TFC_Kink Amp / :ADN2 Sig_N), evalformula));
+dt << New Column("Kink_RNG_QSNR", Formula(20 * Log10(:Kink Amp / :ADN Rng_N), evalformula));
+dt << New Column("Kink_RNG_QSNR2", Formula(20 * Log10(:TFC_Kink Amp / :ADN2 Rng_N), evalformula));
+
+// Add iLoss params
+
+dt << New Column("RawPassIn_MR_Low", Formula(If(200 <= :COLD RESISTANCE, 1, 0), evalformula));
+dt << New Column("RawPassIn_MR_High", Formula(If(:COLD RESISTANCE <= 1000, 1, 0), evalformula));
+//dt << New Column("RawPassIn_COLD RESISTANCE_Fail_wide", Formula(If(:COLD RESISTANCE_Fail_wide <= 0.5, 1, 0), evalformula));
+dt << New Column("RawPassIn_AMPLITUDE", Formula(If(4000 <= :AMPLITUDE <= 35000, 1, 0), evalformula));
+//dt << New Column("RawPassIn_AMPLITUDE Neg", Formula(If(:AMPLITUDE Neg <= 0.5, 1, 0), evalformula));
+dt << New Column("RawPassIn_Idema_Asymmetry", Formula(If(-40 <= :Idema Asymmetry <= 40, 1, 0), evalformula));
+dt << New Column("RawPassIn_Delta_TFC_Amp", Formula(If(-50 <= :Delta TFC Amp <= 50, 1, 0), evalformula));
+dt << New Column("RawPassIn_Delta_TFC_Asym", Formula(If(-20 <= :Delta TFC Asym <= 20, 1, 0), evalformula));
+dt << New Column("RawPassIn_MD52_Amp", Formula(If(0 <= :MD52 Amp <= 50, 1, 0), evalformula));
+dt << New Column("RawPassIn_Kink_B3", Formula(If(-1.5 <= :Kink B3 <= 1.6, 1, 0), evalformula));
+dt << New Column("RawPassIn_Amp_Rng_N", Formula(If(0 <= :Amp Rng N <= 0.5, 1, 0), evalformula));
+dt << New Column("RawPassIn_TFC_Amp_Rng_N", Formula(If(0 <= :TFC Amp Rng N <= 0.5, 1, 0), evalformula));
+dt << New Column("RawPassIn_TFC_Asym_Rng", Formula(If(0 <= :TFC Asym Rng <= 100, 1, 0), evalformula));
+dt << New Column("RawPassIn_Asym_Rng", Formula(If(:Asym Rng <= 100, 1, 0), evalformula));
+dt << New Column("RawPassIn_AD_QSNR", Formula(If(20 <= :AD QSNR <= 50, 1, 0), evalformula));
+dt << New Column("RawPassIn_AD_QSNR2", Formula(If(20 <= :AD QSNR2 <= 50, 1, 0), evalformula));
+dt << New Column("RawPassIn_AD_RNG_QSNR", Formula(If(4 <= :AD RNG QSNR, 1, 0), evalformula));
+dt << New Column("RawPassIn_AD_RNG_QSNR2", Formula(If(4 <= :AD RNG QSNR2, 1, 0), evalformula));
+dt << New Column("RawPassIn_ADN_Min_N", Formula(If(-5000 <= :ADN Min_N, 1, 0), evalformula));
+dt << New Column("RawPassIn_ADN_Max_N", Formula(If(:ADN Max_N <= 5000, 1, 0), evalformula));
+dt << New Column("RawPassIn_ADN_Skew", Formula(If(-5 <= :ADN Skew <= 5, 1, 0), evalformula));
+dt << New Column("RawPassIn_Delta_AD_Skew_N", Formula(If(-5 <= :Delta AD Skew N <= 5, 1, 0), evalformula));
+dt << New Column("RawPassIn_ADN_Kurt", Formula(If(-3 <= :ADN Kurt <= 40, 1, 0), evalformula));
+dt << New Column("RawPassIn_ADN2_Kurt", Formula(If(:ADN2 Kurt <= 75, 1, 0), evalformula));
+dt << New Column("RawPassIn_Delta_AD_Kurt_N", Formula(If(-50 <= :Delta AD Kurt N <= 50, 1, 0), evalformula));
+dt << New Column("RawPassIn_ADN_Match", Formula(If(:ADN Match <= 350, 1, 0), evalformula));
+dt << New Column("RawPassIn_Delta_AD_Rng_N", Formula(If(-5000 <= :Delta AD Rng N <= 8000, 1, 0), evalformula));
+dt << New Column("RawPassIn_ADN_Rng_N", Formula(If(:ADN Rng_N <= 10000, 1, 0), evalformula));
+dt << New Column("RawPassIn_ADN_Sig_N", Formula(If(:ADN Sig_N <= 2750, 1, 0), evalformula));
+//dt << New Column("RawPassIn_d_Rc", Formula(If(-20 <= :d_Rc <= 20, 1, 0), evalformula));
+
+dt << New Column("RawPassIn_Kink_Amp", Formula(If(4000 <= :Kink Amp <= 35000, 1, 0), evalformula));
+dt << New Column("RawPassIn_Kink_Asym", Formula(If(-40 <= :Kink Asym <= 40, 1, 0), evalformula));
+dt << New Column("RawPassIn_Kink_QSNR", Formula(If(20 <= :Kink_QSNR <= 50, 1, 0), evalformula));
+dt << New Column("RawPassIn_Kink_RNG_QSNR", Formula(If(4 <= :Kink_RNG_QSNR, 1, 0), evalformula));
+dt << New Column("RawPassIn_Kink_QSNR2", Formula(If(20 <= :Kink_QSNR2 <= 50, 1, 0), evalformula));
+dt << New Column("RawPassIn_Kink_RNG_QSNR2", Formula(If(4 <= :Kink_RNG_QSNR2, 1, 0), evalformula));
+
+// Add fiter
+
+dt << New Column("Filter", Formula(If(0 <= :ADN Vb <= 1000000000 & 100 <= :COLD RESISTANCE <= 1500 & 
+							1000 <= :AMPLITUDE <= 50000 & -100 <= :Idema Asymmetry <= 100, 1, 0), evalformula));
+
+// Add column for normal quasi filter yield
+
+dt << New Column("FilterPass", Formula(If(:Filter == 0, Empty(), :RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_AMPLITUDE * 
+								:RawPassIn_Idema_Asymmetry * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * 
+								:RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng * 
+								:RawPassIn_Asym_Rng * :RawPassIn_AD_QSNR * :RawPassIn_AD_QSNR2 * :RawPassIn_AD_RNG_QSNR * :RawPassIn_AD_RNG_QSNR2 * 
+								:RawPassIn_ADN_Min_N * :RawPassIn_ADN_Max_N * :RawPassIn_ADN_Skew * :RawPassIn_Delta_AD_Skew_N * :RawPassIn_ADN_Kurt * 
+								:RawPassIn_ADN2_Kurt * :RawPassIn_Delta_AD_Kurt_N * :RawPassIn_ADN_Match * :RawPassIn_Delta_AD_Rng_N * 
+								:RawPassIn_ADN_Rng_N * :RawPassIn_ADN_Sig_N), evalformula));
+
+// Add column for kink filter yield
+
+dt << New Column("FilterPass_Kink", Formula(If(:Filter == 0, Empty(), :RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * 
+								:RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * 
+								:RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng * 
+								:RawPassIn_Asym_Rng * :RawPassIn_Kink_QSNR * :RawPassIn_Kink_QSNR2 * :RawPassIn_Kink_RNG_QSNR * :RawPassIn_Kink_RNG_QSNR2 * 
+								:RawPassIn_ADN_Min_N * :RawPassIn_ADN_Max_N * :RawPassIn_ADN_Skew * :RawPassIn_Delta_AD_Skew_N * :RawPassIn_ADN_Kurt * 
+								:RawPassIn_ADN2_Kurt * :RawPassIn_Delta_AD_Kurt_N * :RawPassIn_ADN_Match * :RawPassIn_Delta_AD_Rng_N * 
+								:RawPassIn_ADN_Rng_N * :RawPassIn_ADN_Sig_N), evalformula));
+
+
+// Add dLoss params
+
+dt << New Column("RawPassDe_MR_Low", Formula(!:RawPassIn_MR_Low, evalformula));  // done
+dt << New Column("RawPassDe_MR_High", Formula(If(:RawPassIn_MR_Low == 0, Empty(), !:RawPassIn_MR_High), evalformula)); // done
+//dt << New Column("RawPassDe_COLD RESISTANCE_Fail_wide", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High == 0, Empty(), !:RawPassIn_COLD RESISTANCE_Fail_wide), evalformula)); // done
+dt << New Column("RawPassDe_AMPLITUDE", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High == 0, Empty(), !:RawPassIn_AMPLITUDE), evalformula)); // done
+//dt << New Column("RawPassDe_AMPLITUDE Neg", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_COLD RESISTANCE_Fail_wide * :RawPassIn_AMPLITUDE == 0, Empty(), !:RawPassIn_AMPLITUDE Neg), evalformula)); // done
+dt << New Column("RawPassDe_Idema_Asymmetry", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_AMPLITUDE == 0, Empty(), !:RawPassIn_Idema_Asymmetry), evalformula)); // done
+dt << New Column("RawPassDe_Delta_TFC_Amp", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym == 0, Empty(), !:RawPassIn_Delta_TFC_Amp), evalformula)); // done
+dt << New Column("RawPassDe_Delta_TFC_Asym", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp == 0, Empty(), !:RawPassIn_Delta_TFC_Asym), evalformula)); // done
+dt << New Column("RawPassDe_MD52_Amp", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym == 0, Empty(), !:RawPassIn_MD52_Amp), evalformula)); // done
+dt << New Column("RawPassDe_Kink_B3", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp == 0, Empty(), !:RawPassIn_Kink_B3), evalformula)); // done
+dt << New Column("RawPassDe_Amp_Rng_N", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 == 0, Empty(), !:RawPassIn_Amp_Rng_N), evalformula)); // done
+dt << New Column("RawPassDe_TFC_Amp_Rng_N", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N == 0, Empty(), !:RawPassIn_TFC_Amp_Rng_N), evalformula)); // done
+dt << New Column("RawPassDe_TFC_Asym_Rng", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N == 0, Empty(), !:RawPassIn_TFC_Asym_Rng), evalformula)); // done
+dt << New Column("RawPassDe_Asym_Rng", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng == 0, Empty(), !:RawPassIn_Asym_Rng), evalformula)); // done
+dt << New Column("RawPassDe_AD_QSNR", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng * :RawPassIn_Asym_Rng == 0, Empty(), !:RawPassIn_AD_QSNR), evalformula)); // done
+dt << New Column("RawPassDe_AD_QSNR2", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng * :RawPassIn_Asym_Rng * :RawPassIn_AD_QSNR == 0, Empty(), !:RawPassIn_AD_QSNR2), evalformula)); // done
+dt << New Column("RawPassDe_AD_RNG_QSNR", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng * :RawPassIn_Asym_Rng * :RawPassIn_AD_QSNR * :RawPassIn_AD_QSNR2 == 0, Empty(), !:RawPassIn_AD_RNG_QSNR), evalformula)); // done
+dt << New Column("RawPassDe_AD_RNG_QSNR2", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng * :RawPassIn_Asym_Rng * :RawPassIn_AD_QSNR * :RawPassIn_AD_QSNR2 * :RawPassIn_AD_RNG_QSNR == 0, Empty(), !:RawPassIn_AD_RNG_QSNR2), evalformula)); // done
+dt << New Column("RawPassDe_ADN_Min_N", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng * :RawPassIn_Asym_Rng * :RawPassIn_Kink_QSNR * :RawPassIn_Kink_QSNR2 * :RawPassIn_Kink_RNG_QSNR * :RawPassIn_Kink_RNG_QSNR2 == 0, Empty(), !:RawPassIn_ADN_min_N), evalformula)); // done
+dt << New Column("RawPassDe_ADN_Max_N", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng * :RawPassIn_Asym_Rng * :RawPassIn_Kink_QSNR * :RawPassIn_AD_QSNR2 * :RawPassIn_Kink_RNG_QSNR * :RawPassIn_AD_RNG_QSNR2 * :RawPassIn_ADN_min_N == 0, Empty(), !:RawPassIn_ADN_Max_N), evalformula)); // done
+dt << New Column("RawPassDe_ADN_Skew", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng * :RawPassIn_Asym_Rng * :RawPassIn_Kink_QSNR * :RawPassIn_AD_QSNR2 * :RawPassIn_Kink_RNG_QSNR * :RawPassIn_AD_RNG_QSNR2 * :RawPassIn_ADN_min_N * :RawPassIn_ADN_Max_N == 0, Empty(), !:RawPassIn_ADN_Skew), evalformula)); // done
+dt << New Column("RawPassDe_Delta_AD_Skew_N", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng * :RawPassIn_Asym_Rng * :RawPassIn_Kink_QSNR * :RawPassIn_AD_QSNR2 * :RawPassIn_Kink_RNG_QSNR * :RawPassIn_AD_RNG_QSNR2 * :RawPassIn_ADN_min_N * :RawPassIn_ADN_Max_N * :RawPassIn_ADN_Skew == 0, Empty(), !:RawPassIn_Delta_AD_Skew_N), evalformula)); // done
+dt << New Column("RawPassDe_ADN_Kurt", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng * :RawPassIn_Asym_Rng * :RawPassIn_Kink_QSNR * :RawPassIn_AD_QSNR2 * :RawPassIn_Kink_RNG_QSNR * :RawPassIn_AD_RNG_QSNR2 * :RawPassIn_ADN_min_N * :RawPassIn_ADN_Max_N * :RawPassIn_ADN_Skew * :RawPassIn_Delta_AD_Skew_N == 0, Empty(), !:RawPassIn_ADN_Kurt), evalformula)); // done
+dt << New Column("RawPassDe_ADN2_Kurt", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng * :RawPassIn_Asym_Rng * :RawPassIn_Kink_QSNR * :RawPassIn_AD_QSNR2 * :RawPassIn_Kink_RNG_QSNR * :RawPassIn_AD_RNG_QSNR2 * :RawPassIn_ADN_min_N * :RawPassIn_ADN_Max_N * :RawPassIn_ADN_Skew * :RawPassIn_Delta_AD_Skew_N * :RawPassIn_ADN_Kurt == 0, Empty(), !:RawPassIn_ADN2_Kurt), evalformula)); // done
+dt << New Column("RawPassDe_Delta_AD_Kurt_N", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng * :RawPassIn_Asym_Rng * :RawPassIn_Kink_QSNR * :RawPassIn_AD_QSNR2 * :RawPassIn_Kink_RNG_QSNR * :RawPassIn_AD_RNG_QSNR2 * :RawPassIn_ADN_min_N * :RawPassIn_ADN_Max_N * :RawPassIn_ADN_Skew * :RawPassIn_Delta_AD_Skew_N * :RawPassIn_ADN_Kurt * :RawPassIn_ADN2_Kurt == 0, Empty(), !:RawPassIn_Delta_AD_Kurt_N), evalformula)); // done 
+dt << New Column("RawPassDe_ADN_Match", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng * :RawPassIn_Asym_Rng * :RawPassIn_Kink_QSNR * :RawPassIn_AD_QSNR2 * :RawPassIn_Kink_RNG_QSNR * :RawPassIn_AD_RNG_QSNR2 * :RawPassIn_ADN_min_N * :RawPassIn_ADN_Max_N * :RawPassIn_ADN_Skew * :RawPassIn_Delta_AD_Skew_N * :RawPassIn_ADN_Kurt * :RawPassIn_ADN2_Kurt * :RawPassIn_Delta_AD_Kurt_N == 0, Empty(), !:RawPassIn_ADN_Match), evalformula)); // done
+dt << New Column("RawPassDe_Delta_AD_Rng_N", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng * :RawPassIn_Asym_Rng * :RawPassIn_Kink_QSNR * :RawPassIn_AD_QSNR2 * :RawPassIn_Kink_RNG_QSNR * :RawPassIn_AD_RNG_QSNR2 * :RawPassIn_ADN_min_N * :RawPassIn_ADN_Max_N * :RawPassIn_ADN_Skew * :RawPassIn_Delta_AD_Skew_N * :RawPassIn_ADN_Kurt * :RawPassIn_ADN2_Kurt * :RawPassIn_Delta_AD_Kurt_N * :RawPassIn_ADN_Match == 0, Empty(), !:RawPassIn_Delta_AD_Rng_N), evalformula)); // done 
+dt << New Column("RawPassDe_ADN_Rng_N", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng * :RawPassIn_Asym_Rng * :RawPassIn_Kink_QSNR * :RawPassIn_AD_QSNR2 * :RawPassIn_Kink_RNG_QSNR * :RawPassIn_AD_RNG_QSNR2 * :RawPassIn_ADN_min_N * :RawPassIn_ADN_Max_N * :RawPassIn_ADN_Skew * :RawPassIn_Delta_AD_Skew_N * :RawPassIn_ADN_Kurt * :RawPassIn_ADN2_Kurt * :RawPassIn_Delta_AD_Kurt_N * :RawPassIn_ADN_Match * :RawPassIn_Delta_AD_Rng_N == 0, Empty(), !:RawPassIn_ADN_Rng_N), evalformula)); // done
+dt << New Column("RawPassDe_ADN_Sig_N", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng * :RawPassIn_Asym_Rng * :RawPassIn_Kink_QSNR * :RawPassIn_AD_QSNR2 * :RawPassIn_Kink_RNG_QSNR * :RawPassIn_AD_RNG_QSNR2 * :RawPassIn_ADN_min_N * :RawPassIn_ADN_Max_N * :RawPassIn_ADN_Skew * :RawPassIn_Delta_AD_Skew_N * :RawPassIn_ADN_Kurt * :RawPassIn_ADN2_Kurt * :RawPassIn_Delta_AD_Kurt_N * :RawPassIn_ADN_Match * :RawPassIn_Delta_AD_Rng_N * :RawPassIn_ADN_Rng_N == 0, Empty(), !:RawPassIn_ADN_Sig_N), evalformula)); // done
+//dt << New Column("RawPassIn_d_Rc", Formula(If(-20 <= :d_Rc <= 20, 1, 0), evalformula));
+
+dt << New Column("RawPassDe_Kink_Amp", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High == 0, Empty(), !:RawPassIn_Kink_Amp), evalformula)); // done
+dt << New Column("RawPassDe_Kink_Asym", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp == 0, Empty(), !:RawPassIn_Kink_Asym), evalformula)); // done
+dt << New Column("RawPassDe_Kink_QSNR", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng * :RawPassIn_Asym_Rng == 0, Empty(), !:RawPassIn_Kink_QSNR), evalformula)); // done
+dt << New Column("RawPassDe_Kink_RNG_QSNR", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng * :RawPassIn_Asym_Rng * :RawPassIn_Kink_QSNR * :RawPassIn_AD_QSNR2 == 0, Empty(), !:RawPassIn_Kink_RNG_QSNR), evalformula)); // done
+dt << New Column("RawPassDe_Kink_QSNR2", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng * :RawPassIn_Asym_Rng * :RawPassIn_Kink_QSNR == 0, Empty(), !:RawPassIn_Kink_QSNR2), evalformula));
+dt << New Column("RawPassDe_Kink_RNG_QSNR2", Formula(If(:RawPassIn_MR_Low * :RawPassIn_MR_High * :RawPassIn_Kink_Amp * :RawPassIn_Kink_Asym * :RawPassIn_Delta_TFC_Amp * :RawPassIn_Delta_TFC_Asym * :RawPassIn_MD52_Amp * :RawPassIn_Kink_B3 * :RawPassIn_Amp_Rng_N * :RawPassIn_TFC_Amp_Rng_N * :RawPassIn_TFC_Asym_Rng * :RawPassIn_Asym_Rng * :RawPassIn_Kink_QSNR * :RawPassIn_Kink_QSNR2 == 0, Empty(), !:RawPassIn_Kink_RNG_QSNR2), evalformula));

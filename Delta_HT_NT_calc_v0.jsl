@@ -1,0 +1,99 @@
+// This script calculates HT - NT delta at quasi
+
+clear log();
+dt = current data table();
+//col_names = dt<< get column names(string);
+
+dt << New Column("Kink_QSNR2", Formula(20 * Log10(:TFC_Kink_Amp / :ADN2_Sig_N)));
+dt << New Column("Kink_RNG_QSNR2", Formula(20 * Log10(:TFC_Kink_Amp / :ADN2_Rng_N), evalformula));
+
+// Add delta (HT - NT) columns
+
+//dt << Move Selected Columns({"Delta_AD_Rng_N","D_AD_Skew_N", "D_AD_Kurt_N", "D_AD_Rng_N", "D_TFCAmpRng", "D_TFCAmpSig", 
+//      "D_TFCAsymRng", "D_TFCAsymSig"}, Before("D_Resistance"));
+
+//Delta_AD_Rng_N
+//D_AD_Skew_N
+//D_AD_Kurt_N
+//D_AD_Rng_N
+//D_TFCAmpRng
+//D_TFCAmpSig
+//D_TFCAsymRng
+//D_TFCAsymSig
+
+dt << new column("D_Resistance", formula(:RHot_Res-:RCold_Res));
+dt << new column("D_Kink_Amp", formula(:TFC_Kink_Amp-:Kink_Amp));
+dt << new column("D_Kink_Asym", formula(:TFC_KinkAsym-:Kink_Asym));
+dt << new column("D_Amp", formula(:Delta_TFCAmp));
+dt << new column("D_Asym", formula(:Delta_TFCAsym));
+dt << new column("D_Kink_B3", formula(:TFC_Kink_B3-:Kink_B3));
+dt << new column("D_Amp_RngN", formula(:TFC_Amp_RngN-:Amp_Rng_N));
+dt << new column("D_AsymRng", formula(:TFC_AsymRng-:Asym_Rng));
+dt << new column("D_Kink_QSNR", formula(:Kink_QSNR2-:Kink_QSNR));
+dt << new column("D_Kink_RNG_QSNR", formula(:Kink_RNG_QSNR2-:Kink_RNG_QSNR));
+dt << new column("D_AD_QSNR", formula(:AD_QSNR2-:AD_QSNR));
+dt << new column("D_AD_RNG_QSNR", formula(:AD_RNG_QSNR2-:AD_RNG_QSNR)); 
+dt << new column("D_ADN_Min_N", formula(:ADN2_Min_N-:ADN_Min_N));
+dt << new column("D_ADN_Max_N", formula(:ADN2_Max_N-:ADN_Max_N));
+dt << new column("D_ADN_Skew", formula(:ADN2_Skew-:ADN_Skew));
+dt << new column("D_ADN_Kurt", formula(:ADN2_Kurt-:ADN_Kurt));
+dt << new column("D_ADN_Match", formula(:ADN2_Match-:ADN_Match));
+dt << new column("D_ADN_Rng_N", formula(:ADN2_Rng_N-:ADN_Rng_N));
+dt << new column("D_ADN_Sig_N", formula(:ADN2_Sig_N-:ADN_Sig_N));
+dt << new column("D_Avg_Mod_SS", formula(:Avg_Mod_SS2-:Avg_Mod_SS));
+dt << new column("D_ADN_GC", formula(:ADN2_GC-:ADN_GC));
+dt << new column("D_ADN_Max", formula(:ADN2_Max-:ADN_Max));
+dt << new column("D_ADN_Mean_N", formula(:ADN2_Mean_N-:ADN_Mean_N));
+dt << new column("D_ADN_Mean", formula(:ADN2_Mean-:ADN_Mean));
+dt << new column("D_ADN_Min", formula(:ADN2_Min-:ADN_Min));
+dt << new column("D_ADN_Mode", formula(:ADN2_Mode-:ADN_Mode));
+dt << new column("D_ADN_Rng", formula(:ADN2_Rng-:ADN_Rng));
+dt << new column("D_ADN_Sig", formula(:ADN2_Sig-:ADN_Sig));
+dt << new column("D_ADN_WS_N", formula(:ADN2_WS_N-:ADN_WS_N));
+dt << new column("D_ADN_WS", formula(:ADN2_WS-:ADN_WS));
+dt << new column("D_Amp_Rng", formula(:TFC_Amp_Rng-:Amp_Rng));
+dt << new column("D_Amp_Sig", formula(:TFC_Amp_Sig-:Amp_Sig));
+dt << new column("D_AsymSig", formula(:TFC_AsymSig-:Asym_Sig));
+dt << new column("D_Avg_Avg_N_SS", formula(:Avg_AvgN_SS2-:Avg_Avg_N_SS));
+dt << new column("D_Avg_Avg_SS", formula(:Avg_Avg_SS2-:Avg_Avg_SS));
+dt << new column("D_Avg_Max_N_SS", formula(:Avg_MaxN_SS2-:Avg_Max_N_SS));
+dt << new column("D_Avg_Max_SS", formula(:Avg_Max_SS2-:Avg_Max_SS));
+dt << new column("D_Avg_Min_N_SS", formula(:Avg_MinN_SS2-:Avg_Min_N_SS));
+dt << new column("D_Avg_Min_SS", formula(:Avg_Min_SS2-:Avg_Min_SS));
+dt << new column("D_Avg_Rng_N_SS", formula(:Avg_RngN_SS2-:Avg_Rng_N_SS));
+dt << new column("D_Avg_Rng_SS", formula(:Avg_Rng_SS2-:Avg_Rng_SS));
+dt << new column("D_Kink_B1", formula(:TFC_Kink_B1-:Kink_B1));
+dt << new column("D_Kink_B2", formula(:TFC_Kink_B2-:Kink_B2));
+dt << new column("D_KINK_MD52", formula(:TFC_KINKMD52-:KINK_MD52));
+dt << new column("D_Max_Fld_SS", formula(:Max_Fld_SS2-:Max_Fld_SS));
+dt << new column("D_Max_N_SS", formula(:Max_N_SS2-:Max_N_SS));
+dt << new column("D_Max_SS", formula(:Max_SS2-:Max_SS));
+dt << new column("D_Median_N_SS", formula(:Median_N_SS2-:Median_N_SS));
+dt << new column("D_Median_SS", formula(:Median_SS2-:Median_SS));
+dt << new column("D_Min_Fld_SS", formula(:Min_Fld_SS2-:Min_Fld_SS));
+dt << new column("D_Min_N_SS", formula(:Min_N_SS2-:Min_N_SS));
+dt << new column("D_Min_SS", formula(:Min_SS2-:Min_SS));
+dt << new column("D_RMS_Sig_N_SS", formula(:RMS_SigN_SS2-:RMS_Sig_N_SS));
+dt << new column("D_RMS_Sig_SS", formula(:RMS_Sig_SS2-:RMS_Sig_SS));
+dt << new column("D_Rng_Avg_N_SS", formula(:Rng_AvgN_SS2-:Rng_Avg_N_SS));
+dt << new column("D_Rng_Avg_SS", formula(:Rng_Avg_SS2-:Rng_Avg_SS));
+dt << new column("D_Rng_Fld_SS", formula(:Rng_Fld_SS2-:Rng_Fld_SS));
+dt << new column("D_Rng_Max_N_SS", formula(:Rng_MaxN_SS2-:Rng_Max_N_SS));
+dt << new column("D_Rng_Max_SS", formula(:Rng_Max_SS2-:Rng_Max_SS));
+dt << new column("D_Rng_N_SS", formula(:Rng_N_SS2-:Rng_N_SS));
+dt << new column("D_Rng_Sig_N_SS", formula(:Rng_SigN_SS2-:Rng_Sig_N_SS));
+dt << new column("D_Rng_Sig_SS", formula(:Rng_Sig_SS2-:Rng_Sig_SS));
+dt << new column("D_Rng_SS", formula(:Rng_SS2-:Rng_SS));
+dt << new column("D_Sig_N_SS", formula(:Sig_N_SS2-:Sig_N_SS));
+dt << new column("D_Sig_SS", formula(:Sig_SS2-:Sig_SS));
+dt << new column("D_Skew_SS", formula(:Skew_SS2-:Skew_SS));
+dt << new column("D_SM_Max_N_SS", formula(:SM_Max_N_SS2-:SM_Max_N_SS));
+dt << new column("D_SM_Max_SS", formula(:SM_Max_SS2-:SM_Max_SS));
+dt << new column("D_SM_Min_N_SS", formula(:SM_Min_N_SS2-:SM_Min_N_SS));
+dt << new column("D_SM_Min_SS", formula(:SM_Min_SS2-:SM_Min_SS));
+dt << new column("D_SM_Rng_N_SS", formula(:SM_Rng_N_SS2-:SM_Rng_N_SS));
+dt << new column("D_SM_Rng_SS", formula(:SM_Rng_SS2-:SM_Rng_SS));
+dt << new column("D_TCK_BHJ_Mag", formula(:TFCTCKBHJ_Mag-:TCK_BHJ_Mag));
+dt << new column("D_TCK_BHJump", formula(:TFC_TCKBHJump-:TCK_BHJump));
+dt << new column("D_TCK_MD52Fld", formula(:TFCTCKMD52Fld-:TCK_MD52Fld));
+

@@ -1,0 +1,71 @@
+
+//-----------------------------------
+//
+// OP3557 RAW DATA
+//
+// Manjit Pathak 09/14/2018
+//
+//-----------------------------------
+
+
+
+
+ChimpParams = "'RL1LC','RL1UC','RL2LC','RL2UC','RL4LC','RL4UC', 'RA1LC', 'RA1UC', 'RA2LC', 'RA2UC', 'RMAX1L','RMAX1U','RMAX2L','RMAX2U','RMAX4L','RMAX4U',
+'RMIN1LC','RMIN1UC','RMIN2LC','RMIN2UC','RMIN4LC','RMIN4UC','TMR1LC','TMR1UC','TMR2LC','TMR2UC','TMR4LC','TMR4UC','TMRULISO'";
+
+
+chimp_db2_dt = open database("DSN="||DSN_helga||";UID="||UID_helga||";PWD="||PWD_helga ||";",
+                                        " SELECT * FROM WTOOLDET.CHIMP
+                                        WHERE WAFERNUM in ("||wafer_list||")  
+                                        and op = '3557' 
+                                        and ROWNUM > 0
+                                        and PARMNAME in ("||ChimpParams||")
+                                        ",
+                                        
+                                        );
+
+dt1 = chimp_db2_dt << stack (
+					columns(
+						:COL01, :COL02, :COL03, :COL04, :COL05, :COL06, :COL07, :COL08, :COL09, :COL10, 
+						:COL11, :COL12, :COL13, :COL14, :COL15, :COL16, :COL17, :COL18, :COL19, :COL20, 
+						:COL21, :COL22, :COL23, :COL24, :COL25, :COL26, :COL27, :COL28, :COL29, :COL30, 
+						:COL31, :COL32, :COL33, :COL34, :COL35, :COL36, :COL37, :COL38, :COL39, :COL40, 
+						:COL41, :COL42, :COL43, :COL44, :COL45, :COL46, :COL47, :COL48, :COL49, :COL50, 
+						:COL51, :COL52, :COL53, :COL54, :COL55, :COL56, :COL57, :COL58, :COL59, :COL60,
+						:COL61, :COL62, :COL63, :COL64)
+);
+
+dt1 << New column("Parameter", Character, nominal, Formula(If(Right(:PARMNAME, 1) == "L", Remove(:PARMNAME), 
+															  Right(:PARMNAME, 1) == "U", Remove(:PARMNAME), 
+															  Right(:PARMNAME, 2) == "LC", Substitute(:PARMNAME, "LC", "C"), 
+															  Right(:PARMNAME, 2) == "UC", Substitute(:PARMNAME, "UC", "C"),
+															  :PARMNAME == "TMRULISO", "TMRULISO", )), evalformula);
+											
+dt1 << New column("Reader", formula(If(Right(:PARMNAME, 1) == "L", "L", Right(:PARMNAME, 1) == "U", "U", 
+									   Right(:PARMNAME, 2) == "LC", "L", Right(:PARMNAME, 2) == "UC", "U",
+									   :PARMNAME == "TMRULISO", "L",
+									   )), evalformula);
+								
+
+ 
+dt1 << Select where (:Data < -100);
+dt1 << delete rows;
+
+dt1 << delete columns ("COLNUM");
+dt1 << New column ("COLNUM", formula(right(:Label, 2)), eval formula);
+dt1:COLNUM << delete formula;
+dt1:Parameter << delete formula;
+dt1:Reader << delte formula;
+
+dt1:COLNUM << Data Type (numeric);
+dt1:COLNUM << Modeling type (continuous);
+dt1 << delete columns ("Label", "PARMNAME", "PARMMEAN", "PARMNUM" );
+
+dt2 = dt1 << Split (
+				Split By (:Parameter),
+				Split (:Data),
+				Group (	:WAFERNUM, :ROWNUM,	:COLNUM, :Reader));
+
+
+close (dt1, no save);
+close (chimp_db2_dt, no save);
