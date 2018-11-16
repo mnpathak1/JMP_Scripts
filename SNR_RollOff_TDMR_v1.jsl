@@ -1,0 +1,155 @@
+// --------------------------------------------
+//
+// SNR and BER roll off (JMP 12)
+// calculates SNR and BER roll off from 1T to 7T from Guzik SWC data in TDMR 
+// Version 1.0a
+// Author: Manjit P.
+// Date  : 09/29/2017
+// Revision History
+// No. When		 Who		What
+// 
+//---------------------------------------------
+
+Clear Log();
+clear Globals();
+dt = Current data table();
+
+
+// Need aGroup_reader column
+// Summary by Group_reader and then transpose for clarity to plot
+
+dt1 = dt <<Summary(
+			Group( :Group_reader ), // change Group
+			Median( :SNR1T_dB_SWC1R_NoSqz ),
+			Median( :SNR2T_dB_SWC1R_NoSqz ),
+			Median( :SNR3T_dB_SWC1R_NoSqz ),
+			Median( :SNR4T_dB_SWC1R_NoSqz ),
+			Median( :SNR5T_dB_SWC1R_NoSqz ),
+			Median( :SNR6T_dB_SWC1R_NoSqz ),
+			Median( :SNR7T_dB_SWC1R_NoSqz ),
+			
+			Median( :signal1T_mV_SWC1R_NoSqz ),
+			Median( :signal2T_mV_SWC1R_NoSqz ),
+			Median( :signal3T_mV_SWC1R_NoSqz ),
+			Median( :signal4T_mV_SWC1R_NoSqz ),
+			Median( :signal5T_mV_SWC1R_NoSqz ),
+			Median( :signal6T_mV_SWC1R_NoSqz ),
+			Median( :signal7T_mV_SWC1R_NoSqz ),
+			
+			Median( :noise1T_mV_SWC1R_NoSqz ),
+			Median( :noise2T_mV_SWC1R_NoSqz ),
+			Median( :noise3T_mV_SWC1R_NoSqz ),
+			Median( :noise4T_mV_SWC1R_NoSqz ),
+			Median( :noise5T_mV_SWC1R_NoSqz ),
+			Median( :noise6T_mV_SWC1R_NoSqz ),
+			Median( :noise7T_mV_SWC1R_NoSqz ),
+			
+			Median( :BER1T_SWC1R_NoSqz ),
+			Median( :BER2T_SWC1R_NoSqz ),
+			Median( :BER3T_SWC1R_NoSqz ),
+			Median( :BER4T_SWC1R_NoSqz ),
+			Median( :BER5T_SWC1R_NoSqz ),
+			Median( :BER6T_SWC1R_NoSqz ),
+			Median( :BER7T_SWC1R_NoSqz ),
+			
+			Median( :eqSNR1T_dB_SWC1R_NoSqz ),
+			Median( :eqSNR2T_dB_SWC1R_NoSqz ),
+			Median( :eqSNR3T_dB_SWC1R_NoSqz ),
+			Median( :eqSNR4T_dB_SWC1R_NoSqz ),
+			Median( :eqSNR5T_dB_SWC1R_NoSqz ),
+			Median( :eqSNR6T_dB_SWC1R_NoSqz ),
+			Median( :eqSNR7T_dB_SWC1R_NoSqz ),
+			
+			Median( :ReadSNR1T_dB_SWC1R_NoSqz ),
+			Median( :ReadSNR2T_dB_SWC1R_NoSqz ),
+			Median( :ReadSNR3T_dB_SWC1R_NoSqz ),
+			Median( :ReadSNR4T_dB_SWC1R_NoSqz ),
+			Median( :ReadSNR5T_dB_SWC1R_NoSqz ),
+			Median( :ReadSNR6T_dB_SWC1R_NoSqz ),
+			Median( :ReadSNR7T_dB_SWC1R_NoSqz ),
+			
+			Freq( "None" ),
+			Weight( "None" ),
+			Link to original data table( 0 ),
+			Output Table( "SNR_rollOff_SWC" )
+);
+
+
+dt1T = dt1 << Transpose( Label( :Group_reader ), Output Table( "SNR_rollOff_SWC_T" )); // Change group
+dt1T << Delete rows(1);  // N Rows, 1st row deleted
+dt1T << New Column ("Param", formula(If(Contains(:Label, "ReadSNR"), "ReadSNR",
+										Contains(:Label, "eqSNR"), "eqSNR", 
+										Contains(:Label, "signal"), "Signal", 
+										Contains(:Label, "noise"), "Noise", 
+										Contains(:Label, "BER"), "BER",
+										"SNR"
+											
+										)), eval formula);
+										
+dt1T << New column("nT",numeric, continuous, formula(Num(If(Contains(:Label, "1T"), 1, 
+														    Contains(:Label, "2T"), 2, 
+														    Contains(:Label, "3T"), 3, 
+														    Contains(:Label, "4T"), 4, 
+														    Contains(:Label, "5T"), 5, 
+														    Contains(:Label, "6T"), 6, 
+														    Contains(:Label, "7T"), 7))) , eval formula);
+														    
+dt1T << Move selected columns({"Param","nT"}, to first);
+:Param << Delete formula;
+:nT << Delete formula;
+dt1T << delete columns("Label");
+
+dt << New column("TN_SNR_1T", formula(20 * Log10(:TN_AMPL_1T / :TN_NOISE_1T)), eval formula);
+dt << New column("TN_SNR_2T", formula(20 * Log10(:TN_AMPL_2T / :TN_NOISE_2T)), eval formula);
+dt << New column("TN_SNR_3T", formula(20 * Log10(:TN_AMPL_3T / :TN_NOISE_3T)), eval formula);
+dt << New column("TN_SNR_4T", formula(20 * Log10(:TN_AMPL_4T / :TN_NOISE_4T)), eval formula);
+dt << New column("TN_SNR_5T", formula(20 * Log10(:TN_AMPL_5T / :TN_NOISE_5T)), eval formula);
+dt << New column("TN_SNR_6T", formula(20 * Log10(:TN_AMPL_6T / :TN_NOISE_6T)), eval formula);
+
+dt2 = dt <<Summary(
+			Group( :Group_reader ), // change Group
+			Median( :TN_SNR_1T ),
+			Median( :TN_SNR_2T ),
+			Median( :TN_SNR_3T ),
+			Median( :TN_SNR_4T ),
+			Median( :TN_SNR_5T ),
+			Median( :TN_SNR_6T ),
+			
+			Median( :TN_AMPL_1T ),
+			Median( :TN_AMPL_2T ),
+			Median( :TN_AMPL_3T ),
+			Median( :TN_AMPL_4T ),
+			Median( :TN_AMPL_5T ),
+			Median( :TN_AMPL_6T ),
+			
+			Median( :TN_NOISE_1T ),
+			Median( :TN_NOISE_2T ),
+			Median( :TN_NOISE_3T ),
+			Median( :TN_NOISE_4T ),
+			Median( :TN_NOISE_5T ),
+			Median( :TN_NOISE_6T ),
+			
+			Freq( "None" ),
+			Weight( "None" ),
+			Link to original data table( 0 ),
+			Output Table( "SNR_rollOff_TN" )
+);
+
+
+dt2T = dt2 << Transpose( Label( :Group_reader ), Output Table( "SNR_rollOff_TN_T" )); // Change group
+dt2T << Delete rows(1);  // N Rows, 1st row deleted
+dt2T << New Column ("Param", formula(If(Contains(:Label, "SNR"), "SNR", 
+										Contains(:Label, "AMPL"), "Signal", 
+										Contains(:Label, "NOISE"), "Noise"), eval formula));
+										
+dt2T << New column("nT",numeric, continuous, formula(Num(If(Contains(:Label, "1T"), 1, 
+														    Contains(:Label, "2T"), 2, 
+														    Contains(:Label, "3T"), 3, 
+														    Contains(:Label, "4T"), 4, 
+														    Contains(:Label, "5T"), 5, 
+														    Contains(:Label, "6T"), 6))) , eval formula);
+														    
+dt2T << Move selected columns({"Param","nT"}, to first);
+:Param << Delete formula;
+:nT << Delete formula;
+dt2T << delete columns("Label");
