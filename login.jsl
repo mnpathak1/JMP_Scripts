@@ -1,0 +1,26 @@
+
+db_connect = "C:\Design\Scripts\JMP Scripts\GO-DataAnalysis\Manjit\JMP\db_connection.jmp";
+
+db_connect_id=Open(db_connect);
+
+::DSN_helga = Column("database")[1];
+::UID_helga = Column("UserID"  )[1];
+::PWD_helga = Column("password")[1];
+
+::DSN_mysql_design = Column("database")[2];
+::UID_mysql_design = Column("UserID"  )[2];
+::PWD_mysql_design = Column("password")[2];
+
+::DSN_sld = Column("database")[3];
+::UID_sld = Column("UserID"  )[3];
+::PWD_sld = Column("password")[3];
+
+::DSN_mysql_new = Column("database")[4];
+::UID_mysql_new = Column("UserID"  )[4];
+::PWD_mysql_new = Column("password")[4];
+
+::DSN_arc = Column("database")[5];
+::UID_arc = Column("UserID"  )[5];
+::PWD_arc = Column("password")[5];
+
+close(db_connect_id);
