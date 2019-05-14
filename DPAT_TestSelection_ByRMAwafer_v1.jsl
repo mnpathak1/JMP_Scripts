@@ -1,0 +1,57 @@
+
+// --------------------------------------------
+//
+// Test selection for DPAT in RMA investigation
+// Following datasets are required from portal:
+// 		1. Raw ULD data by each RMA wafer
+//		2. Generate Statistics table for all the wafers including median and RobustSigma
+//
+//
+// JMP 14
+// Version 1.0
+// Author: Manjit P.
+// Date  : 05/14/2019
+// 
+// Revision History
+// No. When		 Who		What
+//
+//---------------------------------------------
+
+
+
+Clear Log();
+clear Globals();
+
+// Provide RMA ECID and RMA wafer ID
+
+RMAID = "3705060-14_x15_y26";
+RMAwaf = "3705060_14";
+
+// Open the datasets
+
+dtRaw = Open("C:\Users\mpathak\Documents\Projects\Cypress\RMA\DPAT_ULD\3705060_14_ULD_WSALD.jmp");
+dtSum = Open("C:\Users\mpathak\Documents\Projects\Cypress\RMA\DPAT_ULD\RMA_Wafer_TestSum.jmp");
+
+
+dtRaw << Select Where (:ECID == RMAID);
+dtRMAunit  = dtRaw << Subset( Output Table( RMAID||"_WS" ), Selected Rows( 1 ), selected columns( 0 ) );
+
+dtSum << select where (:Wafer == RMAwaf);
+dtRMAwaf = dtSum << Subset( Output Table( RMAwaf||"_WS" ), Selected Rows( 1 ), selected columns( 0 ));
+
+dtRMAwaf << Update ( with(dtRMAunit), Match Columns(
+		:Operation = :Operation,
+		:Wafer = :WaferName,
+		:Parametric Test Name = :ParametricTestName
+	),
+	Add Columns from Update table( :FloatValue ) );
+					
+dtRMAwaf << New Column ("RSRatio", numeric, continuous, formula ((:Q50 - :FloatValue)/:RobustSigma), eval formula);	
+dtRMAwaf << Sort(By(:RSRatio), Order(Descending), Replace Table (1));				
+
+
+dtRMAwaf:FloatValue << Set Name("FloatValue_"||RMAID);
+dtRMAunit:FloatValue << Set Name("FloatValue_"||RMAID);
+
+close (dtRaw, no save);
+close (dtSum, no save);
